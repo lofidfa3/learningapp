@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Stripe Products to Firestore</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #00ff00;
+        }
+        .container {
+            border: 3px solid #00ff00;
+            padding: 30px;
+            background: #1a1a1a;
+        }
+        h1 {
+            color: #ff00ff;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px #ff00ff;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            margin: 10px 0;
+            width: 100%;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #000;
+            border: 2px solid #333;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+        .info { color: #00ccff; }
+        .warning { color: #ffaa00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Sync Stripe Products</h1>
+        <p>This will sync your Stripe products to Firestore for the subscription system.</p>
+        
+        <button id="syncBtn" onclick="syncProducts()">Sync Products Now</button>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc, collection } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDYXHIfb5T574P5CWyPfb-BQ1WnWJiYbic",
+            authDomain: "linguanewes.firebaseapp.com",
+            projectId: "linguanewes",
+            storageBucket: "linguanewes.firebasestorage.app",
+            messagingSenderId: "414257249045",
+            appId: "1:414257249045:web:17ad5d90d62d3ad831871c"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        window.syncProducts = async function() {
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+            document.getElementById('log').innerHTML = '';
+            
+            log('🔄 Starting product sync...', 'info');
+
+            try {
+                // Product data from Stripe
+                const PRODUCT = {
+                    id: 'prod_TENDUFNTcTNf9G',
+                    name: 'monthly subscription',
+                    description: 'monthly subscription',
+                    active: true,
+                    type: 'service',
+                    tax_code: 'txcd_20030000',
+                    images: [],
+                    metadata: {
+                        firebaseRole: 'premium',
+                    },
+                    role: 'premium',
+                };
+
+                const PRICE = {
+                    id: 'price_1SHuT8KG36KCQ0Q54bupdoVU',
+                    active: true,
+                    billing_scheme: 'per_unit',
+                    currency: 'eur',
+                    type: 'recurring',
+                    unit_amount: 100,
+                    recurring: {
+                        interval: 'month',
+                        interval_count: 1,
+                        trial_period_days: null,
+                        usage_type: 'licensed',
+                    },
+                    product: 'prod_TENDUFNTcTNf9G',
+                    tax_behavior: 'unspecified',
+                    metadata: {},
+                };
+
+                // Sync product
+                log(`📦 Syncing product: ${PRODUCT.id}`, 'info');
+                log(`   Name: ${PRODUCT.name}`, 'info');
+                
+                await setDoc(doc(db, 'products', PRODUCT.id), {
+                    active: PRODUCT.active,
+                    name: PRODUCT.name,
+                    description: PRODUCT.description,
+                    role: PRODUCT.role,
+                    images: PRODUCT.images,
+                    metadata: PRODUCT.metadata,
+                    tax_code: PRODUCT.tax_code,
+                    type: PRODUCT.type,
+                }, { merge: true });
+                
+                log('✅ Product synced!', 'success');
+
+                // Sync price
+                log(`💰 Syncing price: ${PRICE.id}`, 'info');
+                log(`   Amount: €${PRICE.unit_amount / 100}`, 'info');
+                
+                await setDoc(doc(db, 'products', PRODUCT.id, 'prices', PRICE.id), {
+                    active: PRICE.active,
+                    billing_scheme: PRICE.billing_scheme,
+                    currency: PRICE.currency,
+                    type: PRICE.type,
+                    unit_amount: PRICE.unit_amount,
+                    recurring: PRICE.recurring,
+                    product: PRICE.product,
+                    tax_behavior: PRICE.tax_behavior,
+                    metadata: PRICE.metadata,
+                    description: PRODUCT.description,
+                }, { merge: true });
+                
+                log('✅ Price synced!', 'success');
+
+                // Verify
+                log('🔍 Verifying sync...', 'info');
+                const productDoc = await getDoc(doc(db, 'products', PRODUCT.id));
+                const priceDoc = await getDoc(doc(db, 'products', PRODUCT.id, 'prices', PRICE.id));
+                
+                if (productDoc.exists() && priceDoc.exists()) {
+                    log('✅ Verification successful!', 'success');
+                    log('', 'info');
+                    log('🎉 SYNC COMPLETE!', 'success');
+                    log('', 'info');
+                    log('🎯 Next steps:', 'info');
+                    log('1. Close this page', 'info');
+                    log('2. Go to /pricing on your app', 'info');
+                    log('3. Click "Subscribe Now"', 'info');
+                    log('4. Should now redirect to Stripe! 🚀', 'success');
+                } else {
+                    log('❌ Verification failed', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        log('✅ Ready to sync!', 'success');
+        log('Click the button above to start', 'info');
+    </script>
+</body>
+</html>
+

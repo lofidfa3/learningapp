@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Retro Light Theme - Warm Cream/Beige */
+    --background: 42 47% 95%;
+    --foreground: 20 14.3% 15%;
+    --card: 40 40% 92%;
+    --card-foreground: 20 14.3% 15%;
+    --popover: 42 47% 95%;
+    --popover-foreground: 20 14.3% 15%;
+    --primary: 28 100% 55%; /* Retro Orange */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 320 80% 65%; /* Retro Pink/Magenta */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 40 30% 85%;
+    --muted-foreground: 20 14.3% 40%;
+    --accent: 180 75% 50%; /* Retro Teal */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 20 20% 75%;
+    --input: 20 20% 75%;
+    --ring: 28 100% 55%;
+    --radius: 0.3rem; /* Less rounded for retro feel */
+  }
+
+  .dark {
+    /* Retro Dark Theme - Deep Purple/Black */
+    --background: 270 30% 8%; /* Deep purple-black */
+    --foreground: 180 100% 85%; /* Bright cyan text */
+    --card: 270 25% 12%;
+    --card-foreground: 180 100% 85%;
+    --popover: 270 25% 12%;
+    --popover-foreground: 180 100% 85%;
+    --primary: 320 100% 70%; /* Hot pink/magenta */
+    --primary-foreground: 0 0% 0%;
+    --secondary: 280 80% 65%; /* Purple */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 270 20% 18%;
+    --muted-foreground: 180 50% 70%;
+    --accent: 180 100% 50%; /* Bright cyan */
+    --accent-foreground: 270 30% 8%;
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 270 40% 25%;
+    --input: 270 40% 20%;
+    --ring: 320 100% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Space Mono', monospace;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+@layer components {
+  /* Retro scanline effect */
+  .retro-scanlines {
+    position: relative;
+  }
+  
+  .retro-scanlines::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.05) 0px,
+      transparent 1px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.05) 3px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Retro glow effect */
+  .retro-glow {
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  }
+
+  /* Retro box shadow */
+  .retro-shadow {
+    box-shadow: 
+      4px 4px 0px 0px currentColor,
+      8px 8px 0px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Retro button */
+  .retro-button {
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    transition: all 0.1s ease;
+    box-shadow: 4px 4px 0px 0px currentColor;
+  }
+
+  .retro-button:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px 0px currentColor;
+  }
+
+  .retro-button:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px 0px currentColor;
+  }
+
+  /* Retro card */
+  .retro-card {
+    border: 3px solid currentColor;
+    box-shadow: 
+      6px 6px 0px 0px currentColor,
+      8px 8px 0px 0px rgba(0, 0, 0, 0.2);
+  }
+
+  /* CRT screen effect */
+  .crt-effect {
+    animation: flicker 0.15s infinite;
+  }
+
+  @keyframes flicker {
+    0% { opacity: 0.98; }
+    50% { opacity: 1; }
+    100% { opacity: 0.98; }
+  }
+
+  /* Pixel corners */
+  .pixel-corners {
+    clip-path: polygon(
+      0 8px, 8px 8px, 8px 0,
+      calc(100% - 8px) 0, calc(100% - 8px) 8px, 100% 8px,
+      100% calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) 100%,
+      8px 100%, 8px calc(100% - 8px), 0 calc(100% - 8px)
+    );
+  }
+
+  /* Retro grid background */
+  .retro-grid {
+    background-image: 
+      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  /* Neon text */
+  .neon-text {
+    text-shadow: 
+      0 0 5px currentColor,
+      0 0 10px currentColor,
+      0 0 15px currentColor,
+      0 0 20px currentColor;
+    animation: neon-flicker 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes neon-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+      text-shadow: 
+        0 0 5px currentColor,
+        0 0 10px currentColor,
+        0 0 15px currentColor,
+        0 0 20px currentColor;
+    }
+    20%, 24%, 55% {
+      text-shadow: none;
+    }
+  }
+}

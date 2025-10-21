@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection rules
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isOwner(userId);
+      
+      // Users can create their own profile
+      allow create: if isOwner(userId);
+      
+      // Users can update their own profile
+      allow update: if isOwner(userId);
+      
+      // Users cannot delete their profile (admin only)
+      allow delete: if false;
+    }
+    
+    // User Actions collection rules
+    match /user_actions/{actionId} {
+      // Users can read their own actions
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Users can create actions for themselves
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['userId', 'actionType', 'targetType', 'timestamp']);
+      
+      // Users can update their own actions
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      // Users can delete their own actions
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // User subcollections rules
+    match /users/{userId}/vocabulary/{vocabId} {
+      // Users can read their own vocabulary
+      allow read: if isOwner(userId);
+      
+      // Users can create their own vocabulary
+      allow create: if isOwner(userId);
+      
+      // Users can update their own vocabulary
+      allow update: if isOwner(userId);
+      
+      // Users can delete their own vocabulary
+      allow delete: if isOwner(userId);
+    }
+    
+    match /users/{userId}/articles/{articleId} {
+      // Users can read their own articles
+      allow read: if isOwner(userId);
+      
+      // Users can create their own articles
+      allow create: if isOwner(userId);
+      
+      // Users can update their own articles
+      allow update: if isOwner(userId);
+      
+      // Users can delete their own articles
+      allow delete: if isOwner(userId);
+    }
+    
+    match /users/{userId}/data/{dataId} {
+      // Users can read their own data (progress, settings, etc.)
+      allow read: if isOwner(userId);
+      
+      // Users can create their own data
+      allow create: if isOwner(userId);
+      
+      // Users can update their own data
+      allow update: if isOwner(userId);
+      
+      // Users can delete their own data
+      allow delete: if isOwner(userId);
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

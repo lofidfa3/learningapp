@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "linguanewes"
+  },
+  "targets": {},
+  "etags": {
+    "linguanewes": {
+      "extensionInstances": {
+        "firestore-stripe-payments": "a2a54cfb33af511b9960bebc46b9a459e687fee35a8787c770494d6ed99321b5"
+      }
+    }
+  }
+}
