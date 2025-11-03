@@ -1,6 +1,5 @@
-import { doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
-import { db } from './firebase';
-import { UserProfile } from './auth-context';
+import { updateUserProfile } from './supabase-services';
+import type { VocabularyItem, NewsArticle } from './types';
 
 export async function updateUserStats(
   userId: string, 
@@ -11,22 +10,25 @@ export async function updateUserStats(
   }
 ) {
   try {
-    const userRef = doc(db, 'users', userId);
-    const updateData: any = {
-      'stats.lastActiveDate': serverTimestamp()
-    };
+    // Get current profile first to increment correctly
+    const updateData: any = {};
+    
+    if (updates.articlesRead !== undefined) {
+      // Increment articles read
+      updateData.articles_read = updates.articlesRead;
+    }
+    if (updates.wordsLearned !== undefined) {
+      // Increment words learned
+      updateData.words_learned = updates.wordsLearned;
+    }
+    if (updates.streakDays !== undefined) {
+      updateData.streak_days = updates.streakDays;
+    }
 
-    if (updates.articlesRead) {
-      updateData['stats.articlesRead'] = increment(updates.articlesRead);
-    }
-    if (updates.wordsLearned) {
-      updateData['stats.wordsLearned'] = increment(updates.wordsLearned);
-    }
-    if (updates.streakDays) {
-      updateData['stats.streakDays'] = increment(updates.streakDays);
-    }
+    // Always update last active date
+    updateData.last_active_date = new Date().toISOString();
 
-    await updateDoc(userRef, updateData);
+    await updateUserProfile(userId, updateData);
   } catch (error) {
     console.error('Error updating user stats:', error);
   }
@@ -43,14 +45,20 @@ export async function saveUserVocabulary(
   }
 ) {
   try {
-    const vocabRef = doc(db, 'users', userId, 'vocabulary', `${Date.now()}-${Math.random()}`);
-    await updateDoc(vocabRef, {
+    // Use the Supabase vocabulary service
+    const { saveVocabularyItem } = await import('./supabase-services');
+    
+    const item: VocabularyItem = {
+      id: `${Date.now()}-${Math.random()}`,
       ...vocabularyItem,
-      createdAt: serverTimestamp(),
-      reviewed: false,
+      articleId: '',
+      articleTitle: '',
+      mastered: false,
       reviewCount: 0,
-      lastReviewed: null
-    });
+      createdAt: new Date(),
+    };
+    
+    await saveVocabularyItem(userId, item);
   } catch (error) {
     console.error('Error saving vocabulary:', error);
   }
@@ -69,12 +77,20 @@ export async function saveUserArticle(
   }
 ) {
   try {
-    const articleRef = doc(db, 'users', userId, 'articles', article.id);
-    await updateDoc(articleRef, {
-      ...article,
-      savedAt: serverTimestamp(),
-      readCount: increment(1)
-    });
+    // Use the Supabase article service
+    const { saveArticle } = await import('./supabase-services');
+    
+    const newsArticle: NewsArticle = {
+      id: article.id,
+      title: article.title,
+      description: '',
+      content: article.content,
+      url: '',
+      publishedAt: article.publishedAt,
+      source: article.source,
+    };
+    
+    await saveArticle(userId, newsArticle);
   } catch (error) {
     console.error('Error saving article:', error);
   }

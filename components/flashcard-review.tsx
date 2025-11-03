@@ -5,8 +5,10 @@ import { VocabularyItem, SUPPORTED_LANGUAGES } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { updateVocabularyItem, updateProgress, getProgress } from '@/lib/storage';
 import { Volume2, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { actionToasts } from '@/lib/toast-utils';
+import { useUserData } from '@/lib/use-user-data';
+import { useAuth } from '@/lib/auth-context';
 
 interface FlashcardReviewProps {
   words: VocabularyItem[];
@@ -15,6 +17,8 @@ interface FlashcardReviewProps {
 }
 
 export function FlashcardReview({ words, onComplete, targetLanguage }: FlashcardReviewProps) {
+  const { user } = useAuth();
+  const userDataManager = useUserData(user?.id || null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
@@ -46,28 +50,31 @@ export function FlashcardReview({ words, onComplete, targetLanguage }: Flashcard
     return nextReview;
   }
 
-  function handleAnswer(isCorrect: boolean) {
+  async function handleAnswer(isCorrect: boolean) {
     const newReviewCount = currentWord.reviewCount + 1;
     const isMastered = isCorrect && newReviewCount >= 5;
+    const nextReviewDate = calculateNextReview(isCorrect, newReviewCount);
 
-    updateVocabularyItem(currentWord.id, {
-      mastered: isMastered,
-      reviewCount: newReviewCount,
-      lastReviewed: new Date(),
-      nextReview: calculateNextReview(isCorrect, newReviewCount),
-    });
+    // Update in Supabase if user is authenticated
+    if (user && userDataManager) {
+      try {
+        await userDataManager.updateVocab(currentWord.id, {
+          mastered: isMastered,
+          reviewCount: newReviewCount,
+          lastReviewed: new Date(),
+          nextReview: nextReviewDate,
+        });
+      } catch (error) {
+        console.error('Error updating vocabulary item:', error);
+      }
+    }
 
+    // Show feedback toast
     if (isCorrect) {
       setCorrectCount(correctCount + 1);
-
-      // Update progress
-      if (isMastered) {
-        const progress = getProgress();
-        const currentProgress = progress[targetLanguage];
-        updateProgress(targetLanguage, {
-          masteredWords: (currentProgress?.masteredWords || 0) + 1,
-        });
-      }
+      actionToasts.flashcardCorrect();
+    } else {
+      actionToasts.flashcardWrong();
     }
 
     // Move to next card

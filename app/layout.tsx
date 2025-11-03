@@ -8,6 +8,8 @@ import { Loader2 } from "lucide-react";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AuthGuard } from "@/components/auth-guard";
+import { ToastProvider } from "@/components/toast-provider";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const spaceMono = Space_Mono({ 
   subsets: ["latin"],
@@ -41,19 +43,22 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={spaceMono.className}>
-        <ThemeProvider>
-          <AuthProvider>
-            <div className="retro-grid min-h-screen flex flex-col">
-              <Navigation />
-              <main className="flex-1">
-                <Suspense fallback={<LoadingFallback />}>
-                  {children}
-                </Suspense>
-              </main>
-              <Footer />
-            </div>
-          </AuthProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <AuthProvider>
+              <ToastProvider />
+              <div className="retro-grid min-h-screen flex flex-col">
+                <Navigation />
+                <main className="flex-1">
+                  <Suspense fallback={<LoadingFallback />}>
+                    {children}
+                  </Suspense>
+                </main>
+                <Footer />
+              </div>
+            </AuthProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

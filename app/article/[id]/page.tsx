@@ -14,6 +14,8 @@ import { AuthPrompt } from '@/components/auth-prompt';
 import { useAuth } from '@/lib/auth-context';
 import { useUserData } from '@/lib/use-user-data';
 import { useUserActions } from '@/lib/use-user-actions';
+import { useSupabaseData } from '@/lib/use-supabase-data';
+import { actionToasts } from '@/lib/toast-utils';
 
 export default function ArticlePage() {
   const params = useParams();
@@ -21,8 +23,9 @@ export default function ArticlePage() {
   const articleId = decodeURIComponent(params.id as string);
   const targetLanguage = searchParams.get('lang') || 'italian';
   const { user } = useAuth();
-  const userDataManager = useUserData(user?.uid || null);
-  const { track } = useUserActions();
+  const userDataManager = useUserData(user?.id || null);
+  const { track: trackOld } = useUserActions();
+  const supabaseData = useSupabaseData(user?.id || null);
 
   const [article, setArticle] = useState<NewsArticle | null>(null);
   const [translation, setTranslation] = useState<string>('');
@@ -63,6 +66,14 @@ export default function ArticlePage() {
       if (data.translatedText) {
         setTranslation(data.translatedText);
         setActiveTab('translation');
+        actionToasts.translationComplete();
+        
+        // Track translation action in Supabase
+        if (user) {
+          await supabaseData.track('translated_article', 'translation', article.id, {
+            language: targetLanguage,
+          });
+        }
       }
     } catch (error) {
       console.error('Translation failed:', error);
@@ -90,6 +101,15 @@ export default function ArticlePage() {
       const data = await response.json();
       if (data.vocabulary) {
         setVocabulary(data.vocabulary);
+        actionToasts.vocabularyExtracted(data.vocabulary.length);
+        
+        // Track vocabulary extraction in Supabase
+        if (user) {
+          await supabaseData.track('extracted_vocabulary', 'vocabulary', article.id, {
+            count: data.vocabulary.length,
+            language: targetLanguage,
+          });
+        }
       }
     } catch (error) {
       console.error('Vocabulary extraction failed:', error);
@@ -99,12 +119,8 @@ export default function ArticlePage() {
   }
 
   async function handleSaveVocabulary(vocabItem: any) {
-    if (!article || !user || !userDataManager) {
-      console.error('Missing required data for saving vocabulary:', {
-        hasArticle: !!article,
-        hasUser: !!user,
-        hasUserDataManager: !!userDataManager
-      });
+    if (!article || !user) {
+      console.error('Missing required data for saving vocabulary');
       return;
     }
 
@@ -129,38 +145,20 @@ export default function ArticlePage() {
     };
 
     try {
-      console.log('Saving vocabulary item for user:', user.uid, vocabularyItem);
-      await userDataManager.saveVocabularyItem(vocabularyItem);
+      // Save to Supabase
+      const success = await supabaseData.saveVocab(vocabularyItem);
       
-      // Track user action
-      try {
-        await track('saved_word', 'vocabulary', vocabularyItem.id, {
-          word: vocabItem.originalWord,
-          language: targetLanguage
-        });
-      } catch (trackError) {
-        console.warn('Failed to track user action:', trackError);
-        // Don't fail the save operation if tracking fails
+      if (success) {
+        console.log('Vocabulary item saved successfully for user:', user.id);
       }
-
-      console.log('Vocabulary item saved successfully for user:', user.uid);
-      
-      // Silent save - no popup needed
     } catch (error) {
       console.error('Error saving vocabulary item:', error);
-      console.error('Error details:', {
-        message: (error as any)?.message,
-        code: (error as any)?.code,
-        stack: (error as any)?.stack
-      });
-      // Silent error handling - just log to console
-      console.error('Failed to save vocabulary item silently');
     }
   }
 
   async function handleSaveAllVocabulary() {
-    if (!user || !userDataManager) {
-      console.error('Missing user or userDataManager for saving all vocabulary');
+    if (!user) {
+      console.error('Missing user for saving all vocabulary');
       return;
     }
     
@@ -169,10 +167,9 @@ export default function ArticlePage() {
     }
     
     try {
-      console.log(`Saving ${vocabulary.length} vocabulary items for user:`, user.uid);
+      console.log(`Saving ${vocabulary.length} vocabulary items for user:`, user.id);
       
       let savedCount = 0;
-      let failedCount = 0;
       
       for (const vocab of vocabulary) {
         try {
@@ -180,32 +177,27 @@ export default function ArticlePage() {
           savedCount++;
         } catch (error) {
           console.error(`Failed to save vocabulary item:`, vocab, error);
-          failedCount++;
         }
       }
       
-      console.log(`Saved ${savedCount} vocabulary items, ${failedCount} failed for user:`, user.uid);
+      if (savedCount > 0) {
+        actionToasts.savedAllWords(savedCount);
+      }
       
-      // Silent save - no popup needed
+      console.log(`Saved ${savedCount} vocabulary items for user:`, user.id);
     } catch (error) {
       console.error('Error saving all vocabulary items:', error);
-      // Silent error handling - just log to console
     }
   }
 
   async function handleMarkArticleAsRead() {
-    if (!article || !user || !userDataManager) return;
+    if (!article || !user) return;
 
     try {
-      await userDataManager.saveArticle(article);
-      await userDataManager.markArticleAsRead(article.id);
+      // Save article and mark as read in Supabase
+      await supabaseData.saveArticleData(article);
+      await supabaseData.markAsRead(article.id, article.title);
       
-      // Track user action
-      await track('read_article', 'article', article.id, {
-        title: article.title,
-        language: targetLanguage
-      });
-
       console.log('Article marked as read');
     } catch (error) {
       console.error('Error marking article as read:', error);

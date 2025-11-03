@@ -17,7 +17,7 @@ export default function ProgressPage() {
   const { user } = useAuth();
   const router = useRouter();
   const { history, statistics } = useUserActions();
-  const userDataManager = useUserData(user?.uid || null);
+  const userDataManager = useUserData(user?.id || null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('italian');
   const [progress, setProgress] = useState<Record<string, LanguageProgress>>({});
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>([]);

@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 export default function FlashcardsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const userDataManager = useUserData(user?.uid || null);
+  const userDataManager = useUserData(user?.id || null);
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('italian');
   const [isReviewing, setIsReviewing] = useState(false);

@@ -43,7 +43,7 @@ export function useUserActions() {
     
     setLoading(true);
     try {
-      const userHistory = await getUserHistory(user.uid);
+      const userHistory = await getUserHistory(user.id);
       setHistory(userHistory);
     } catch (error) {
       console.error('Error loading user history:', error);
@@ -59,7 +59,7 @@ export function useUserActions() {
     if (!user) return;
     
     try {
-      const stats = await getUserActionStatistics(user.uid);
+      const stats = await getUserActionStatistics(user.id);
       setStatistics(stats);
     } catch (error) {
       console.error('Error loading user statistics:', error);
@@ -81,7 +81,7 @@ export function useUserActions() {
     }
 
     const success = await trackUserAction(
-      user.uid,
+      user.id,
       actionType,
       targetType,
       targetId,
@@ -105,7 +105,7 @@ export function useUserActions() {
     targetId: string
   ): Promise<boolean> => {
     if (!user) return false;
-    return await hasUserPerformedAction(user.uid, actionType, targetId);
+    return await hasUserPerformedAction(user.id, actionType, targetId);
   }, [user]);
 
   /**
@@ -116,7 +116,7 @@ export function useUserActions() {
     limit: number = 50
   ): Promise<UserAction[]> => {
     if (!user) return [];
-    return await getSpecificUserActions(user.uid, actionType, limit);
+    return await getSpecificUserActions(user.id, actionType, limit);
   }, [user]);
 
   /**

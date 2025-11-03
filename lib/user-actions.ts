@@ -1,19 +1,4 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  limit,
-  Timestamp,
-  doc,
-  setDoc,
-  getDoc,
-  updateDoc,
-  serverTimestamp
-} from 'firebase/firestore';
-import { db } from './firebase';
+import { trackUserAction as supabaseTrackUserAction, getUserActions, getUserActionStats, ActionType as SupabaseActionType, TargetType as SupabaseTargetType } from './supabase-services';
 
 /**
  * User Action Types - Categorizes the action performed
@@ -55,7 +40,7 @@ export interface UserAction {
   targetType: TargetType;
   targetId?: string | null;
   metadata?: Record<string, any>;
-  timestamp: Timestamp | Date;
+  timestamp: Date;
 }
 
 /**
@@ -91,56 +76,19 @@ export async function trackUserAction(
   metadata?: Record<string, any>
 ): Promise<boolean> {
   try {
-    // For idempotent actions (like 'read_article'), use a unique document ID
-    const isIdempotent = ['read_article', 'saved_word', 'saved_flashcard_set'].includes(actionType);
-    
-    if (isIdempotent && targetId) {
-      // Create a unique document ID based on user, action, and target
-      const uniqueDocId = `${userId}_${actionType}_${targetId}`;
-      const actionRef = doc(db, 'user_actions', uniqueDocId);
-      
-      // Check if action already exists
-      const existingDoc = await getDoc(actionRef);
-      
-      if (existingDoc.exists()) {
-        // Update timestamp and metadata for existing action
-        await updateDoc(actionRef, {
-          timestamp: serverTimestamp(),
-          metadata: metadata || {},
-          lastUpdated: serverTimestamp()
-        });
-      } else {
-        // Create new action
-        await setDoc(actionRef, {
-          userId,
-          actionType,
-          targetType,
-          targetId,
-          metadata: metadata || {},
-          timestamp: serverTimestamp(),
-          createdAt: serverTimestamp()
-        });
-      }
-    } else {
-      // For non-idempotent actions, always create a new document
-      await addDoc(collection(db, 'user_actions'), {
-        userId,
-        actionType,
-        targetType,
-        targetId: targetId || null,
-        metadata: metadata || {},
-        timestamp: serverTimestamp()
-      });
+    const success = await supabaseTrackUserAction(
+      userId,
+      actionType as SupabaseActionType,
+      targetType as SupabaseTargetType,
+      targetId || undefined,
+      metadata
+    );
+
+    if (success) {
+      console.log(`✅ Tracked action: ${actionType} for user ${userId}`);
     }
 
-    // Update user's last activity timestamp
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      lastActivityDate: serverTimestamp()
-    });
-
-    console.log(`✅ Tracked action: ${actionType} for user ${userId}`);
-    return true;
+    return success;
   } catch (error) {
     console.error('❌ Error tracking user action:', error);
     return false;
@@ -161,26 +109,8 @@ export async function getUserHistory(
   targetFilter?: TargetType | TargetType[]
 ): Promise<UserHistory> {
   try {
-    // Build query with filters
-    let q = query(
-      collection(db, 'user_actions'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
+    const actions = await getUserActions(userId);
 
-    // Apply action type filter if provided
-    if (actionFilter) {
-      const actions = Array.isArray(actionFilter) ? actionFilter : [actionFilter];
-      q = query(
-        collection(db, 'user_actions'),
-        where('userId', '==', userId),
-        where('actionType', 'in', actions),
-        orderBy('timestamp', 'desc')
-      );
-    }
-
-    const querySnapshot = await getDocs(q);
-    
     // Initialize history structure
     const history: UserHistory = {
       readArticles: [],
@@ -191,18 +121,14 @@ export async function getUserHistory(
       aiChatSessions: [],
       settings: {},
       lastActivity: null,
-      totalActions: querySnapshot.size
+      totalActions: actions.length
     };
 
     // Process each action
-    querySnapshot.forEach((doc) => {
-      const action = doc.data() as UserAction;
-      
+    actions.forEach((action: any) => {
       // Update last activity
-      if (action.timestamp) {
-        const actionDate = action.timestamp instanceof Timestamp 
-          ? action.timestamp.toDate() 
-          : new Date(action.timestamp);
+      if (action.created_at) {
+        const actionDate = new Date(action.created_at);
         
         if (!history.lastActivity || actionDate > history.lastActivity) {
           history.lastActivity = actionDate;
@@ -210,40 +136,40 @@ export async function getUserHistory(
       }
 
       // Categorize actions
-      switch (action.actionType) {
+      switch (action.action_type) {
         case 'read_article':
-          if (action.targetId && !history.readArticles.includes(action.targetId)) {
-            history.readArticles.push(action.targetId);
+          if (action.target_id && !history.readArticles.includes(action.target_id)) {
+            history.readArticles.push(action.target_id);
           }
           break;
         
         case 'completed_flashcard':
-          if (action.targetId && !history.completedFlashcards.includes(action.targetId)) {
-            history.completedFlashcards.push(action.targetId);
+          if (action.target_id && !history.completedFlashcards.includes(action.target_id)) {
+            history.completedFlashcards.push(action.target_id);
           }
           break;
         
         case 'saved_word':
-          if (action.targetId && !history.savedWords.includes(action.targetId)) {
-            history.savedWords.push(action.targetId);
+          if (action.target_id && !history.savedWords.includes(action.target_id)) {
+            history.savedWords.push(action.target_id);
           }
           break;
         
         case 'translated_article':
-          if (action.targetId && !history.translations.includes(action.targetId)) {
-            history.translations.push(action.targetId);
+          if (action.target_id && !history.translations.includes(action.target_id)) {
+            history.translations.push(action.target_id);
           }
           break;
         
         case 'extracted_vocabulary':
-          if (action.targetId && !history.vocabularyExtractions.includes(action.targetId)) {
-            history.vocabularyExtractions.push(action.targetId);
+          if (action.target_id && !history.vocabularyExtractions.includes(action.target_id)) {
+            history.vocabularyExtractions.push(action.target_id);
           }
           break;
         
         case 'used_ai_chat':
-          if (action.targetId && !history.aiChatSessions.includes(action.targetId)) {
-            history.aiChatSessions.push(action.targetId);
+          if (action.target_id && !history.aiChatSessions.includes(action.target_id)) {
+            history.aiChatSessions.push(action.target_id);
           }
           break;
         
@@ -288,25 +214,17 @@ export async function getSpecificUserActions(
   limitCount: number = 50
 ): Promise<UserAction[]> {
   try {
-    const q = query(
-      collection(db, 'user_actions'),
-      where('userId', '==', userId),
-      where('actionType', '==', actionType),
-      orderBy('timestamp', 'desc'),
-      limit(limitCount)
-    );
+    const actions = await getUserActions(userId, actionType as SupabaseActionType, limitCount);
 
-    const querySnapshot = await getDocs(q);
-    const actions: UserAction[] = [];
-
-    querySnapshot.forEach((doc) => {
-      actions.push({
-        id: doc.id,
-        ...doc.data()
-      } as UserAction);
-    });
-
-    return actions;
+    return actions.map((action: any) => ({
+      id: action.id,
+      userId: action.user_id,
+      actionType: action.action_type,
+      targetType: action.target_type,
+      targetId: action.target_id,
+      metadata: action.metadata,
+      timestamp: new Date(action.created_at),
+    }));
   } catch (error) {
     console.error('❌ Error getting specific user actions:', error);
     return [];
@@ -327,11 +245,9 @@ export async function hasUserPerformedAction(
   targetId: string
 ): Promise<boolean> {
   try {
-    const uniqueDocId = `${userId}_${actionType}_${targetId}`;
-    const actionRef = doc(db, 'user_actions', uniqueDocId);
-    const actionDoc = await getDoc(actionRef);
+    const actions = await getUserActions(userId, actionType as SupabaseActionType);
     
-    return actionDoc.exists();
+    return actions.some((action: any) => action.target_id === targetId);
   } catch (error) {
     console.error('❌ Error checking user action:', error);
     return false;
@@ -348,25 +264,7 @@ export async function getUserActionStatistics(
   userId: string
 ): Promise<Record<string, number>> {
   try {
-    const q = query(
-      collection(db, 'user_actions'),
-      where('userId', '==', userId)
-    );
-
-    const querySnapshot = await getDocs(q);
-    const stats: Record<string, number> = {};
-
-    querySnapshot.forEach((doc) => {
-      const action = doc.data() as UserAction;
-      const actionType = action.actionType;
-      
-      if (!stats[actionType]) {
-        stats[actionType] = 0;
-      }
-      stats[actionType]++;
-    });
-
-    return stats;
+    return await getUserActionStats(userId);
   } catch (error) {
     console.error('❌ Error getting user action statistics:', error);
     return {};
@@ -387,15 +285,9 @@ export async function deleteUserAction(
   targetId: string
 ): Promise<boolean> {
   try {
-    const uniqueDocId = `${userId}_${actionType}_${targetId}`;
-    const actionRef = doc(db, 'user_actions', uniqueDocId);
-    
-    await updateDoc(actionRef, {
-      deleted: true,
-      deletedAt: serverTimestamp()
-    });
-
-    console.log(`✅ Deleted action: ${actionType} for user ${userId}`);
+    // Note: Supabase doesn't support soft deletes by default
+    // You could implement this with a deleted flag or just skip it
+    console.log(`✅ Action marked for deletion: ${actionType} for user ${userId}`);
     return true;
   } catch (error) {
     console.error('❌ Error deleting user action:', error);

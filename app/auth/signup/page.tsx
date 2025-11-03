@@ -48,19 +48,25 @@ export default function SignUpPage() {
 
     try {
       await signUp(formData.email, formData.password, formData.displayName);
-      router.push('/');
+      // Check if we need to wait for email confirmation
+      // If user is immediately signed in, redirect
+      setTimeout(() => {
+        router.push('/');
+      }, 500);
     } catch (error: any) {
       console.error('Sign up error:', error);
       
-      // User-friendly error messages
-      if (error.code === 'auth/email-already-in-use') {
+      // Supabase error messages
+      if (error.message?.includes('User already registered') || error.message?.includes('already registered')) {
         setError('This email is already registered. Please sign in instead.');
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.message?.includes('Invalid email')) {
         setError('Please enter a valid email address.');
-      } else if (error.code === 'auth/weak-password') {
-        setError('Password is too weak. Please use a stronger password.');
+      } else if (error.message?.includes('Password')) {
+        setError('Password is too weak. Please use a stronger password (minimum 6 characters).');
+      } else if (error.message?.includes('Email rate limit')) {
+        setError('Too many signup attempts. Please try again later.');
       } else {
-        setError('Failed to create account. Please try again.');
+        setError(error.message || 'Failed to create account. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -73,11 +79,11 @@ export default function SignUpPage() {
 
     try {
       await signInWithGoogle();
-      router.push('/');
+      // Note: OAuth will redirect to callback page, so we don't need to push here
+      // The router.push will happen in the callback handler
     } catch (error: any) {
       console.error('Google sign in error:', error);
-      setError('Failed to sign in with Google. Please try again.');
-    } finally {
+      setError(error.message || 'Failed to sign in with Google. Please try again.');
       setLoading(false);
     }
   }

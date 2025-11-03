@@ -62,7 +62,20 @@ export default function AuthPage() {
         await signIn(email, password);
       }
     } catch (error: any) {
-      setError(error.message || 'Authentication failed');
+      // Handle Supabase-specific errors
+      let errorMessage = error.message || 'Authentication failed';
+      
+      if (error.message?.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password.';
+      } else if (error.message?.includes('Email not confirmed')) {
+        errorMessage = 'Please check your email to confirm your account.';
+      } else if (error.message?.includes('already registered')) {
+        errorMessage = 'This email is already registered. Please sign in instead.';
+      } else if (error.message?.includes('Password')) {
+        errorMessage = 'Password must be at least 6 characters.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -73,9 +86,10 @@ export default function AuthPage() {
     setLoading(true);
     try {
       await signInWithGoogle();
+      // OAuth redirects automatically, so we don't set loading to false here
+      // Loading will reset when the page redirects
     } catch (error: any) {
       setError(error.message || 'Google sign-in failed');
-    } finally {
       setLoading(false);
     }
   };

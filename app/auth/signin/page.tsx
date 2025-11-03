@@ -35,18 +35,26 @@ export default function SignInPage() {
 
     try {
       await signIn(formData.email, formData.password);
-      router.push('/');
+      // Redirect after successful sign in
+      setTimeout(() => {
+        router.push('/');
+      }, 100);
     } catch (error: any) {
       console.error('Sign in error:', error);
       
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      // Supabase error codes
+      if (error.message?.includes('Invalid login credentials') || error.message?.includes('Email not confirmed')) {
         setError('Invalid email or password.');
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.message?.includes('Email not confirmed')) {
+        setError('Please check your email to confirm your account before signing in.');
+      } else if (error.message?.includes('User not found')) {
+        setError('No account found with this email. Please sign up first.');
+      } else if (error.message?.includes('Invalid email')) {
         setError('Please enter a valid email address.');
-      } else if (error.code === 'auth/too-many-requests') {
+      } else if (error.message?.includes('Too many requests')) {
         setError('Too many failed attempts. Please try again later.');
       } else {
-        setError('Failed to sign in. Please try again.');
+        setError(error.message || 'Failed to sign in. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -59,11 +67,11 @@ export default function SignInPage() {
 
     try {
       await signInWithGoogle();
-      router.push('/');
+      // Note: OAuth will redirect to callback page, so we don't need to push here
+      // The router.push will happen in the callback handler
     } catch (error: any) {
       console.error('Google sign in error:', error);
-      setError('Failed to sign in with Google. Please try again.');
-    } finally {
+      setError(error.message || 'Failed to sign in with Google. Please try again.');
       setLoading(false);
     }
   }
