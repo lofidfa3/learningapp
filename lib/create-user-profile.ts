@@ -58,12 +58,25 @@ export async function ensureUserProfile(userId: string, email: string, displayNa
     // Check if profile exists
     const { data: existing, error: fetchError } = await supabase
       .from('users')
-      .select('id')
+      .select('id, display_name')
       .eq('id', userId)
       .single();
 
     if (existing) {
-      console.log('User profile already exists');
+      // Profile exists, but check if display_name is empty
+      if (!existing.display_name || existing.display_name === '') {
+        console.log('Updating empty display_name for:', userId);
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ display_name: displayName || email.split('@')[0] })
+          .eq('id', userId);
+        
+        if (updateError) {
+          console.error('Error updating display_name:', updateError);
+        }
+      } else {
+        console.log('User profile already exists with display_name');
+      }
       return true;
     }
 

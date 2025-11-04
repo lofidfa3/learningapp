@@ -187,14 +187,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign in with Google
   async function signInWithGoogle() {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const redirectUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/auth/callback`
+        : 'http://localhost:3000/auth/callback';
+        
+      console.log('Starting Google OAuth with redirect:', redirectUrl);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('OAuth initiation error:', error);
+        throw error;
+      }
+      
+      console.log('OAuth redirect initiated:', data);
     } catch (error: any) {
       console.error('Google sign in error:', error);
       throw error;
@@ -240,11 +255,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Ensure user profile exists
+          // Ensure user profile exists with proper display name
+          const displayNameFromMetadata = 
+            session.user.user_metadata?.display_name ||
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.name ||
+            session.user.email?.split('@')[0];
+            
           ensureUserProfile(
             session.user.id,
             session.user.email || '',
-            session.user.user_metadata?.display_name
+            displayNameFromMetadata
           ).then(() => {
             fetchUserProfile(session.user.id).then(profile => {
               if (mounted) setUserProfile(profile);
