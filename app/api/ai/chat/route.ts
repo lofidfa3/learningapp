@@ -11,10 +11,22 @@ export async function POST(request: NextRequest) {
     userQuestion = question || '';
     articleTitle = title || '';
     
-    console.log('Chat API called with DeepSeek:', {
+    // Verify API key is available
+    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      console.error('❌ Missing API key: DEEPSEEK_API_KEY or OPENROUTER_API_KEY');
+      return NextResponse.json(
+        { error: 'AI service not configured. Please check environment variables.' },
+        { status: 500 }
+      );
+    }
+    
+    console.log('💬 Chat API called:', {
       hasArticleContent: !!articleContent,
       hasArticleTitle: !!articleTitle,
       hasUserQuestion: !!userQuestion,
+      hasApiKey: !!apiKey,
+      model: process.env.DEEPSEEK_MODEL || 'default'
     });
 
     if (!articleContent || !userQuestion) {

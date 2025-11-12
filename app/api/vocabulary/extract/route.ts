@@ -26,7 +26,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify API key is available
+    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      console.error('❌ Missing API key: DEEPSEEK_API_KEY or OPENROUTER_API_KEY');
+      return NextResponse.json(
+        { error: 'AI service not configured. Please check environment variables.' },
+        { status: 500 }
+      );
+    }
+
     const targetLangName = languageCodeMap[targetLanguage] || targetLanguage;
+    
+    console.log('📚 Extracting vocabulary:', { 
+      textLength: text.length, 
+      targetLanguage: targetLangName,
+      count,
+      hasApiKey: !!apiKey,
+      model: process.env.DEEPSEEK_MODEL || 'default'
+    });
     
     // Use DeepSeek AI for vocabulary extraction
     const vocabulary = await extractVocabularyWithDeepSeek(text, targetLangName, count);
