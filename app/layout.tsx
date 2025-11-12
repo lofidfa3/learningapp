@@ -48,8 +48,10 @@ export default function RootLayout({
             <AuthProvider>
               <ToastProvider />
               <div className="retro-grid min-h-screen flex flex-col">
-                <Navigation />
-                <main className="flex-1">
+                <div className="relative" style={{ zIndex: 100 }}>
+                  <Navigation />
+                </div>
+                <main className="flex-1 relative" style={{ zIndex: 1 }}>
                   <Suspense fallback={<LoadingFallback />}>
                     {children}
                   </Suspense>
