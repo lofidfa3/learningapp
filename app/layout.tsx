@@ -47,11 +47,9 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthProvider>
               <ToastProvider />
-              <div className="retro-grid min-h-screen flex flex-col">
-                <div className="relative" style={{ zIndex: 100 }}>
-                  <Navigation />
-                </div>
-                <main className="flex-1 relative" style={{ zIndex: 1 }}>
+              <div className="retro-grid min-h-screen flex flex-col" style={{ position: 'relative' }}>
+                <Navigation />
+                <main className="flex-1" style={{ position: 'relative', zIndex: 1 }}>
                   <Suspense fallback={<LoadingFallback />}>
                     {children}
                   </Suspense>

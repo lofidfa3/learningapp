@@ -34,25 +34,23 @@ export function Navigation() {
 
   return (
     <nav 
-      className="sticky top-0 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pointer-events-auto"
-      style={{ zIndex: 100 }}
+      className="sticky top-0 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      style={{ zIndex: 1000, position: 'sticky' }}
     >
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+      <div className="container mx-auto px-4" style={{ position: 'relative', zIndex: 1001 }}>
+        <div className="flex h-16 items-center justify-between" style={{ position: 'relative', zIndex: 1002 }}>
           {/* Logo */}
           <Link 
             href="/" 
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity pointer-events-auto relative z-10"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            style={{ position: 'relative', zIndex: 1003 }}
           >
             <BookOpen className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold">LinguaNews</span>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1 pointer-events-auto relative z-10">
+          <div className="hidden md:flex items-center gap-1" style={{ position: 'relative', zIndex: 1003 }}>
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -62,14 +60,12 @@ export function Navigation() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors pointer-events-auto relative z-10',
+                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
+                  style={{ position: 'relative', zIndex: 1004 }}
                 >
                   <Icon className="h-4 w-4" />
                   <span>{item.label}</span>
@@ -79,7 +75,7 @@ export function Navigation() {
           </div>
 
           {/* Mobile Navigation Icons */}
-          <div className="flex md:hidden items-center gap-1 pointer-events-auto relative z-10">
+          <div className="flex md:hidden items-center gap-1" style={{ position: 'relative', zIndex: 1003 }}>
             {navigationItems.slice(0, 3).map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -89,15 +85,13 @@ export function Navigation() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'p-2 rounded-md transition-colors pointer-events-auto relative z-10',
+                    'p-2 rounded-md transition-colors cursor-pointer',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
                   title={item.label}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
+                  style={{ position: 'relative', zIndex: 1004 }}
                 >
                   <Icon className="h-5 w-5" />
                 </Link>
@@ -106,7 +100,7 @@ export function Navigation() {
           </div>
 
           {/* Right Side Actions */}
-          <div className="flex items-center gap-2 pointer-events-auto relative z-10">
+          <div className="flex items-center gap-2" style={{ position: 'relative', zIndex: 1003 }}>
             <ThemeToggle />
             
             {user ? (
