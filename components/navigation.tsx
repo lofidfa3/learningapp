@@ -40,14 +40,18 @@ export function Navigation() {
       <div className="container mx-auto px-4" style={{ position: 'relative', zIndex: 1001 }}>
         <div className="flex h-16 items-center justify-between" style={{ position: 'relative', zIndex: 1002 }}>
           {/* Logo */}
-          <Link 
-            href="/" 
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          <button
+            onClick={() => {
+              if (pathname !== '/') {
+                router.push('/');
+              }
+            }}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none"
             style={{ position: 'relative', zIndex: 1003 }}
           >
             <BookOpen className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold">LinguaNews</span>
-          </Link>
+          </button>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1" style={{ position: 'relative', zIndex: 1003 }}>
@@ -56,11 +60,15 @@ export function Navigation() {
               const isActive = pathname === item.href;
 
               return (
-                <Link
+                <button
                   key={item.href}
-                  href={item.href}
+                  onClick={() => {
+                    if (!isActive) {
+                      router.push(item.href);
+                    }
+                  }}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer',
+                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer bg-transparent border-none',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -69,7 +77,7 @@ export function Navigation() {
                 >
                   <Icon className="h-4 w-4" />
                   <span>{item.label}</span>
-                </Link>
+                </button>
               );
             })}
           </div>
@@ -81,11 +89,15 @@ export function Navigation() {
               const isActive = pathname === item.href;
 
               return (
-                <Link
+                <button
                   key={item.href}
-                  href={item.href}
+                  onClick={() => {
+                    if (!isActive) {
+                      router.push(item.href);
+                    }
+                  }}
                   className={cn(
-                    'p-2 rounded-md transition-colors cursor-pointer',
+                    'p-2 rounded-md transition-colors cursor-pointer bg-transparent border-none',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -94,7 +106,7 @@ export function Navigation() {
                   style={{ position: 'relative', zIndex: 1004 }}
                 >
                   <Icon className="h-5 w-5" />
-                </Link>
+                </button>
               );
             })}
           </div>
