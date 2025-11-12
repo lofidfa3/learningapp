@@ -8,6 +8,7 @@ export interface NewsArticle {
   publishedAt: string;
   source: string;
   author?: string;
+  is_read?: boolean;
 }
 
 export interface Translation {

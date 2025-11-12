@@ -4,43 +4,42 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LanguageSelector } from '@/components/language-selector';
-import { getSelectedLanguage, getVocabulary, getProgress, getSavedArticles } from '@/lib/storage';
-import { Download, Trash2, Info } from 'lucide-react';
+import { Download, Info } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useUserData } from '@/lib/use-user-data';
+import { UserDataManager } from '@/lib/user-data';
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const userDataManager: UserDataManager | null = useUserData(user?.id ?? null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('italian');
-  const [stats, setStats] = useState({
-    vocabularyCount: 0,
-    articlesCount: 0,
-    languagesCount: 0,
-  });
+  const [vocabulary, setVocabulary] = useState<any[]>([]);
+  const [articles, setArticles] = useState<any[]>([]);
+  const [progress, setProgress] = useState<any>({});
 
   useEffect(() => {
-    const savedLanguage = getSelectedLanguage();
+    if (userDataManager) {
+      userDataManager.getVocabulary().then(setVocabulary);
+      userDataManager.getSavedArticles().then(setArticles);
+      userDataManager.getProgress().then(setProgress);
+    }
+  }, [userDataManager]);
+  
+  const stats = {
+    vocabularyCount: vocabulary.length,
+    articlesCount: articles.length,
+    languagesCount: Object.keys(progress).length,
+  };
+
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('selectedLanguage');
     if (savedLanguage) {
       setSelectedLanguage(savedLanguage);
     }
-
-    updateStats();
   }, []);
 
-  function updateStats() {
-    const vocabulary = getVocabulary();
-    const articles = getSavedArticles();
-    const progress = getProgress();
-
-    setStats({
-      vocabularyCount: vocabulary.length,
-      articlesCount: articles.length,
-      languagesCount: Object.keys(progress).length,
-    });
-  }
-
   function handleExportData() {
-    const vocabulary = getVocabulary();
-    const progress = getProgress();
-    const articles = getSavedArticles();
-
+    if (!user) return;
     const exportData = {
       vocabulary,
       progress,
@@ -58,21 +57,6 @@ export default function SettingsPage() {
     link.click();
     
     URL.revokeObjectURL(url);
-  }
-
-  function handleClearData() {
-    if (!confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
-      return;
-    }
-
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('language-learning-vocabulary');
-      localStorage.removeItem('language-learning-progress');
-      localStorage.removeItem('language-learning-articles');
-      
-      alert('All data has been cleared.');
-      updateStats();
-    }
   }
 
   return (
@@ -128,48 +112,21 @@ export default function SettingsPage() {
         {/* API Configuration Info */}
         <Card>
           <CardHeader>
-            <CardTitle>API Configuration</CardTitle>
+            <CardTitle>AI Model Configuration</CardTitle>
             <CardDescription>
-              Information about required API keys
+              The application is powered by DeepSeek AI
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
-              <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <CardContent>
+            <div className="flex gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 dark:bg-blue-950 dark:border-blue-800">
+              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm space-y-2">
-                <p className="font-medium text-green-900">✅ No API Keys Required!</p>
-                <p className="text-green-800">
-                  This app uses completely free APIs and works immediately without any configuration.
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  AI-Powered Learning
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-green-700 mt-2">
-                  <li>
-                    <strong>The Guardian API</strong> - Free news articles (no key needed)
-                  </li>
-                  <li>
-                    <strong>MyMemory Translation API</strong> - Free translations (no key needed)
-                  </li>
-                  <li>
-                    <strong>Lyrics APIs</strong> - Free song lyrics (lyrics.ovh, lrclib.net, ChartLyrics)
-                  </li>
-                  <li>
-                    <strong>Custom NLP</strong> - Smart vocabulary extraction
-                  </li>
-                </ul>
-                <p className="text-xs text-green-700 mt-3">
-                  Optional: For enhanced features, you can add free API keys to your{' '}
-                  <code className="bg-green-100 px-1 py-0.5 rounded">.env.local</code> file:
-                  <br />
-                  <code className="block mt-1 bg-green-100 p-2 rounded">
-                    GUARDIAN_API_KEY=your_free_key (optional)
-                    <br />
-                    GNEWS_API_KEY=your_free_key (optional)
-                    <br />
-                    NEXT_PUBLIC_SPOTIFY_CLIENT_ID=your_spotify_id (for Lyrics)
-                  </code>
-                  <br />
-                  <span className="text-xs mt-1 block">
-                    See <strong>SPOTIFY_SETUP.md</strong> for Spotify integration guide
-                  </span>
+                <p className="text-blue-800 dark:text-blue-200">
+                  This app uses the DeepSeek API for translations, vocabulary extraction, and chat. 
+                  Ensure your API key is set in the environment variables.
                 </p>
               </div>
             </div>
@@ -181,7 +138,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Data Management</CardTitle>
             <CardDescription>
-              Export or clear your learning data
+              Export your learning data from the database
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -189,22 +146,14 @@ export default function SettingsPage() {
               onClick={handleExportData}
               variant="outline"
               className="w-full justify-start"
+              disabled={!user}
             >
               <Download className="h-4 w-4 mr-2" />
               Export All Data (JSON)
             </Button>
-            
-            <Button
-              onClick={handleClearData}
-              variant="destructive"
-              className="w-full justify-start"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear All Data
-            </Button>
 
             <p className="text-xs text-muted-foreground">
-              All data is stored locally in your browser. Export your data regularly to keep a backup.
+              Your learning data is stored securely in our database. You can export it anytime for a backup.
             </p>
           </CardContent>
         </Card>
@@ -216,18 +165,14 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>
-              <strong className="text-foreground">LinguaNews</strong> - Learn languages through live news articles & song lyrics
+              <strong className="text-foreground">LinguaNews</strong> - Learn languages through live news articles
             </p>
             <p>
-              This app uses free translation APIs and smart vocabulary extraction to help you learn new languages 
-              by reading real news articles and your favorite song lyrics. Features include Spotify integration, 
-              spaced repetition flashcards, progress tracking, and text-to-speech for pronunciation practice.
+              This app uses AI to help you learn new languages by reading real news articles. 
+              Features include AI-powered translations, vocabulary extraction, spaced repetition flashcards, and progress tracking.
             </p>
             <p className="text-xs">
-              Built with Next.js, TypeScript, Tailwind CSS, and 100% free APIs
-            </p>
-            <p className="text-xs text-green-600 font-medium mt-1">
-              ✨ No API keys required - completely free to use!
+              Built with Next.js, TypeScript, Tailwind CSS, Supabase, and DeepSeek AI.
             </p>
           </CardContent>
         </Card>

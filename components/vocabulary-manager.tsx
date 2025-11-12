@@ -4,8 +4,9 @@ import { VocabularyItem } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trash2, Volume2 } from 'lucide-react';
-import { deleteVocabularyItem } from '@/lib/storage';
 import { format } from 'date-fns';
+import { supabase } from '@/lib/supabaseClient';
+import toast from 'react-hot-toast';
 
 interface VocabularyManagerProps {
   vocabulary: VocabularyItem[];
@@ -13,10 +14,16 @@ interface VocabularyManagerProps {
 }
 
 export function VocabularyManager({ vocabulary, onUpdate }: VocabularyManagerProps) {
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (confirm('Are you sure you want to delete this word?')) {
-      deleteVocabularyItem(id);
-      onUpdate();
+      const { error } = await supabase.from('vocabulary').delete().match({ id });
+      if (error) {
+        toast.error('Failed to delete word.');
+        console.error('Error deleting vocabulary:', error);
+      } else {
+        toast.success('Word deleted.');
+        onUpdate();
+      }
     }
   }
 

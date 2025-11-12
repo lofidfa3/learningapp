@@ -1,0 +1,46 @@
+🔑 ENVIRONMENT VARIABLES FOR VERCEL
+====================================
+
+Copy these to Vercel Dashboard → Settings → Environment Variables
+
+For each variable, select: ✅ Production ✅ Preview ✅ Development
+
+
+1. NEXT_PUBLIC_SUPABASE_URL
+Value: https://cnuuusmeigryzkctfcgr.supabase.co
+
+2. NEXT_PUBLIC_SUPABASE_ANON_KEY
+Value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNudXV1c21laWdyeXprY3RmY2dyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzMzNDgsImV4cCI6MjA1MjgwOTM0OH0.AClvNd9Mi0f1VDMLo0j1yGXe-YXYE-CGhfHqFwpuWHQ
+
+3. DEEPSEEK_API_KEY
+Value: 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
+
+4. OPENROUTER_API_KEY
+Value: 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
+
+5. DEEPSEEK_MODEL
+Value: deepseek/deepseek-chat-v3.1:free
+
+
+🌐 SUPABASE REDIRECT URLS TO ADD
+====================================
+
+After deployment, go to:
+https://supabase.com/dashboard/project/cnuuusmeigryzkctfcgr/auth/url-configuration
+
+Add these (replace YOUR-VERCEL-URL with your actual URL):
+
+Redirect URLs:
+- https://YOUR-VERCEL-URL.vercel.app/**
+- https://YOUR-VERCEL-URL.vercel.app/auth/callback
+
+Site URL:
+- https://YOUR-VERCEL-URL.vercel.app
+
+
+✅ DONE!
+After adding env vars and updating Supabase, click "Redeploy" in Vercel.
+
+
+
+

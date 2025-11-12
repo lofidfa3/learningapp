@@ -33,6 +33,7 @@ export default function ArticlePage() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isExtractingVocab, setIsExtractingVocab] = useState(false);
   const [activeTab, setActiveTab] = useState('original');
+  const [isRead, setIsRead] = useState(false);
 
   useEffect(() => {
     // In a real app, you would fetch the article by ID from your backend
@@ -45,7 +46,17 @@ export default function ArticlePage() {
         setArticle(foundArticle);
       }
     }
-  }, [articleId]);
+
+    async function checkReadStatus() {
+      if (user && article) {
+        const savedArticle = supabaseData.articles.find(a => a.id === article.id);
+        if (savedArticle && savedArticle.is_read) {
+          setIsRead(true);
+        }
+      }
+    }
+    checkReadStatus();
+  }, [articleId, user, article, supabaseData]);
 
   async function handleTranslate() {
     if (!article) return;
@@ -59,6 +70,8 @@ export default function ArticlePage() {
         body: JSON.stringify({
           text: article.content,
           targetLanguage: languageInfo.name,
+          userId: user?.id,
+          articleId: article.id,
         }),
       });
 
@@ -67,13 +80,6 @@ export default function ArticlePage() {
         setTranslation(data.translatedText);
         setActiveTab('translation');
         actionToasts.translationComplete();
-        
-        // Track translation action in Supabase
-        if (user) {
-          await supabaseData.track('translated_article', 'translation', article.id, {
-            language: targetLanguage,
-          });
-        }
       }
     } catch (error) {
       console.error('Translation failed:', error);
@@ -95,6 +101,8 @@ export default function ArticlePage() {
           text: article.content,
           targetLanguage: languageInfo.name,
           count: 15,
+          userId: user?.id,
+          articleId: article.id,
         }),
       });
 
@@ -102,14 +110,6 @@ export default function ArticlePage() {
       if (data.vocabulary) {
         setVocabulary(data.vocabulary);
         actionToasts.vocabularyExtracted(data.vocabulary.length);
-        
-        // Track vocabulary extraction in Supabase
-        if (user) {
-          await supabaseData.track('extracted_vocabulary', 'vocabulary', article.id, {
-            count: data.vocabulary.length,
-            language: targetLanguage,
-          });
-        }
       }
     } catch (error) {
       console.error('Vocabulary extraction failed:', error);
@@ -149,6 +149,10 @@ export default function ArticlePage() {
       const success = await supabaseData.saveVocab(vocabularyItem);
       
       if (success) {
+        await supabaseData.track('saved_word', 'vocabulary', article.id, {
+          word: vocabularyItem.originalWord,
+          language: targetLanguage,
+        });
         console.log('Vocabulary item saved successfully for user:', user.id);
       }
     } catch (error) {
@@ -180,7 +184,11 @@ export default function ArticlePage() {
         }
       }
       
-      if (savedCount > 0) {
+      if (savedCount > 0 && article) {
+        await supabaseData.track('saved_word', 'vocabulary', article.id, {
+          count: savedCount,
+          language: targetLanguage,
+        });
         actionToasts.savedAllWords(savedCount);
       }
       
@@ -197,6 +205,9 @@ export default function ArticlePage() {
       // Save article and mark as read in Supabase
       await supabaseData.saveArticleData(article);
       await supabaseData.markAsRead(article.id, article.title);
+      
+      setIsRead(true);
+      actionToasts.articleRead(article.title);
       
       console.log('Article marked as read');
     } catch (error) {
@@ -293,8 +304,9 @@ export default function ArticlePage() {
                 onClick={handleMarkArticleAsRead}
                 variant="outline"
                 size="sm"
+                disabled={isRead}
               >
-                Mark as Read
+                {isRead ? '✓ Read' : 'Mark as Read'}
               </Button>
             </AuthPrompt>
           </div>

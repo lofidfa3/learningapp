@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, User, Mail, Lock, Chrome } from 'lucide-react';
+import { Loader2, User, Mail, Lock } from 'lucide-react';
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp } = useAuth();
   
   const [formData, setFormData] = useState({
     displayName: '',
@@ -69,21 +69,6 @@ export default function SignUpPage() {
         setError(error.message || 'Failed to create account. Please try again.');
       }
     } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogleSignIn() {
-    setError('');
-    setLoading(true);
-
-    try {
-      await signInWithGoogle();
-      // Note: OAuth will redirect to callback page, so we don't need to push here
-      // The router.push will happen in the callback handler
-    } catch (error: any) {
-      console.error('Google sign in error:', error);
-      setError(error.message || 'Failed to sign in with Google. Please try again.');
       setLoading(false);
     }
   }
@@ -186,28 +171,6 @@ export default function SignUpPage() {
                 )}
               </Button>
             </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-            >
-              <Chrome className="mr-2 h-4 w-4" />
-              Sign up with Google
-            </Button>
           </CardContent>
 
           <CardFooter>

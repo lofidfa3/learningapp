@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractVocabularyWithDeepSeek } from '@/lib/deepseek-ai';
-import { createUserDataManager } from '@/lib/user-data';
+import { trackUserAction } from '@/lib/user-actions';
 
 // Language name mapping
 const languageCodeMap: Record<string, string> = {
@@ -17,7 +17,7 @@ const languageCodeMap: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, targetLanguage, count = 15, userId, saveToFirebase = false } = await request.json();
+    const { text, targetLanguage, count = 15, userId, articleId } = await request.json();
 
     if (!text || !targetLanguage) {
       return NextResponse.json(
@@ -31,35 +31,17 @@ export async function POST(request: NextRequest) {
     // Use DeepSeek AI for vocabulary extraction
     const vocabulary = await extractVocabularyWithDeepSeek(text, targetLangName, count);
 
-    // Optionally save to Firebase if userId is provided
-    if (saveToFirebase && userId && vocabulary.length > 0) {
+    // Track vocabulary extraction if userId is provided
+    if (userId) {
       try {
-        const userDataManager = createUserDataManager(userId);
-        
-        // Save each vocabulary item
-        for (const vocab of vocabulary) {
-          const vocabItem = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            originalWord: vocab.originalWord,
-            translatedWord: vocab.translatedWord,
-            originalSentence: vocab.originalSentence,
-            translatedSentence: vocab.translatedSentence,
-            language: targetLanguage,
-            reviewCount: 0,
-            correctCount: 0,
-            mastered: false,
-            articleId: 'extracted',
-            articleTitle: 'Extracted Vocabulary',
-            createdAt: new Date(),
-          };
-          
-          await userDataManager.saveVocabularyItem(vocabItem);
-        }
-        
-        console.log(`Saved ${vocabulary.length} vocabulary items for user ${userId}`);
-      } catch (saveError) {
-        console.error('Error saving vocabulary to Firebase:', saveError);
-        // Don't fail the request if saving fails, just log it
+        await trackUserAction(userId, 'extracted_vocabulary', 'article', articleId || 'unknown', {
+          language: targetLanguage,
+          count: vocabulary.length,
+        });
+        console.log(`Tracked vocabulary extraction for user ${userId}`);
+      } catch (trackError) {
+        console.error('Error tracking vocabulary extraction:', trackError);
+        // Don't fail the request if tracking fails
       }
     }
 

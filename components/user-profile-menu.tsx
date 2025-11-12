@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, Music, Crown } from 'lucide-react';
+import { LogOut, User, Settings, LayoutDashboard } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,68 +13,59 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getSpotifyAuth, clearSpotifyAuth, type SpotifyUser } from '@/lib/spotify-auth';
-import { SpotifyLoginButton } from '@/components/spotify-login-button';
+import Link from 'next/link';
 
 export function UserProfileMenu() {
   const router = useRouter();
-  const [user, setUser] = useState<SpotifyUser | null>(null);
+  const { user, signOut } = useAuth();
 
-  useEffect(() => {
-    const auth = getSpotifyAuth();
-    if (auth) {
-      setUser(auth.user);
-    }
-  }, []);
-
-  function handleLogout() {
-    clearSpotifyAuth();
-    setUser(null);
-    router.push('/');
+  async function handleLogout() {
+    await signOut();
+    router.push('/auth');
   }
 
   if (!user) {
-    return <SpotifyLoginButton variant="outline" size="sm" />;
+    return (
+      <Link href="/auth">
+        <Button variant="outline" size="sm">
+          Sign In
+        </Button>
+      </Link>
+    );
   }
+
+  const userInitial = user.email ? user.email.charAt(0).toUpperCase() : '?';
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={user.imageUrl} alt={user.displayName} />
-            <AvatarFallback>
-              {user.displayName.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
+            {/* Add user avatar image if available in your profile data */}
+            <AvatarImage src="" alt={user.email ?? ''} />
+            <AvatarFallback>{userInitial}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName}</p>
-            <p className="text-xs leading-none text-muted-foreground">
+            <p className="text-sm font-medium leading-none">
               {user.email}
             </p>
-            {user.product === 'premium' && (
-              <div className="flex items-center gap-1 text-xs text-yellow-600 mt-1">
-                <Crown className="h-3 w-3" />
-                <span>Premium</span>
-              </div>
-            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push('/lyrics')}>
-          <Music className="mr-2 h-4 w-4" />
-          <span>Lyrics</span>
+        <DropdownMenuItem onClick={() => router.push('/profile')}>
+          <LayoutDashboard className="mr-2 h-4 w-4" />
+          <span>Profile</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push('/settings')}>
-          <User className="mr-2 h-4 w-4" />
+          <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+        <DropdownMenuItem onClick={handleLogout} className="text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>

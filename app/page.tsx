@@ -6,7 +6,6 @@ import { NewsArticle } from '@/lib/types';
 import { LanguageSelector } from '@/components/language-selector';
 import { Button } from '@/components/ui/button';
 import { NewsCardSkeleton } from '@/components/loading-skeleton';
-import { getSelectedLanguage } from '@/lib/storage';
 import { apiCache } from '@/lib/cache';
 import { useAuth } from '@/lib/auth-context';
 import { CheckCircle, Zap } from 'lucide-react';
@@ -35,7 +34,7 @@ export default function HomePage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    const savedLanguage = getSelectedLanguage();
+    const savedLanguage = localStorage.getItem('selectedLanguage');
     if (savedLanguage) {
       setSelectedLanguage(savedLanguage);
     }

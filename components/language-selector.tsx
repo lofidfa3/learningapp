@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SUPPORTED_LANGUAGES } from '@/lib/types';
-import { saveSelectedLanguage } from '@/lib/storage';
 
 interface LanguageSelectorProps {
   value: string;
@@ -18,7 +17,7 @@ interface LanguageSelectorProps {
 export function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
   function handleLanguageChange(newValue: string) {
     onChange(newValue);
-    saveSelectedLanguage(newValue);
+    localStorage.setItem('selectedLanguage', newValue);
   }
 
   return (
