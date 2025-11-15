@@ -35,9 +35,8 @@ export default function ArticlePage() {
   const [activeTab, setActiveTab] = useState('original');
   const [isRead, setIsRead] = useState(false);
 
+  // Load article from session storage
   useEffect(() => {
-    // In a real app, you would fetch the article by ID from your backend
-    // For now, we'll use localStorage or session storage
     const savedArticles = sessionStorage.getItem('current-articles');
     if (savedArticles) {
       const articles = JSON.parse(savedArticles);
@@ -46,7 +45,10 @@ export default function ArticlePage() {
         setArticle(foundArticle);
       }
     }
+  }, [articleId]); // Only depend on articleId, not article itself
 
+  // Check read status when article is loaded
+  useEffect(() => {
     async function checkReadStatus() {
       if (user && article) {
         const savedArticle = supabaseData.articles.find(a => a.id === article.id);
@@ -56,7 +58,7 @@ export default function ArticlePage() {
       }
     }
     checkReadStatus();
-  }, [articleId, user, article, supabaseData]);
+  }, [user, article?.id, supabaseData.articles]); // Only depend on article.id, not the whole article object
 
   async function handleTranslate() {
     if (!article) return;

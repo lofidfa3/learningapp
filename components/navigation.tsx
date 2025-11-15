@@ -35,7 +35,7 @@ export function Navigation() {
   return (
     <nav 
       className="sticky top-0 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-      style={{ zIndex: 1000, position: 'sticky' }}
+      style={{ zIndex: 1000, position: 'sticky', pointerEvents: 'auto' }}
     >
       <div className="container mx-auto px-4" style={{ position: 'relative', zIndex: 1001 }}>
         <div className="flex h-16 items-center justify-between" style={{ position: 'relative', zIndex: 1002 }}>
@@ -47,7 +47,7 @@ export function Navigation() {
               }
             }}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none"
-            style={{ position: 'relative', zIndex: 1003 }}
+            style={{ position: 'relative', zIndex: 1003, pointerEvents: 'auto' }}
           >
             <BookOpen className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold">LinguaNews</span>
@@ -73,7 +73,7 @@ export function Navigation() {
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
-                  style={{ position: 'relative', zIndex: 1004 }}
+                  style={{ position: 'relative', zIndex: 1004, pointerEvents: 'auto' }}
                 >
                   <Icon className="h-4 w-4" />
                   <span>{item.label}</span>
@@ -103,7 +103,7 @@ export function Navigation() {
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   )}
                   title={item.label}
-                  style={{ position: 'relative', zIndex: 1004 }}
+                  style={{ position: 'relative', zIndex: 1004, pointerEvents: 'auto' }}
                 >
                   <Icon className="h-5 w-5" />
                 </button>
