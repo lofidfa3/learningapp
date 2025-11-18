@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NewsArticle } from '@/lib/types';
 
 // Multi-source news aggregator - fetches from multiple free news APIs
-// Sources: The Guardian, BBC RSS, Al Jazeera RSS, Reuters RSS, Le Monde RSS (French), France24 RSS (French), NewsData.io, NYT (optional)
+// Sources: The Guardian, BBC RSS, Al Jazeera RSS, Reuters RSS, NewsData.io, NYT (optional)
 
 const GUARDIAN_API_KEY = process.env.GUARDIAN_API_KEY || 'test';
 const NYT_API_KEY = process.env.NYT_API_KEY; // Optional: Get at developer.nytimes.com
@@ -53,25 +53,25 @@ async function fetchGuardian(category: string, pageSize: number, page: number = 
       if (!data?.response?.results) break;
       
       const articles = data.response.results
-        .filter((article: any) => article.fields?.headline && article.fields?.trailText)
-        .map((article: any, index: number) => {
-          const bodyText = article.fields?.body 
+      .filter((article: any) => article.fields?.headline && article.fields?.trailText)
+      .map((article: any, index: number) => {
+        const bodyText = article.fields?.body 
             ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000)
-            : article.fields?.trailText || '';
+          : article.fields?.trailText || '';
 
-          return {
+        return {
             id: `guardian-${article.id}-${page}-${i}-${index}`,
-            title: article.fields.headline || article.webTitle,
-            description: article.fields.trailText || '',
-            content: bodyText,
-            url: article.webUrl,
-            imageUrl: article.fields.thumbnail,
-            publishedAt: article.webPublicationDate,
-            source: 'The Guardian',
+          title: article.fields.headline || article.webTitle,
+          description: article.fields.trailText || '',
+          content: bodyText,
+          url: article.webUrl,
+          imageUrl: article.fields.thumbnail,
+          publishedAt: article.webPublicationDate,
+          source: 'The Guardian',
             author: article.fields.byline || 'The Guardian',
-          };
-        });
-      
+        };
+      });
+
       allArticles.push(...articles);
       
       // If we got less than 50 articles, no more pages available
@@ -282,7 +282,7 @@ async function fetchNewsData(category: string, pageSize: number): Promise<NewsAr
     
     return data.results.map((article: any, index: number) => ({
       id: `newsdata-${article.article_id || Date.now()}-${index}`,
-      title: article.title,
+        title: article.title,
       description: article.description || '',
       content: article.content || article.description || '',
       url: article.link,
@@ -297,103 +297,6 @@ async function fetchNewsData(category: string, pageSize: number): Promise<NewsAr
   }
 }
 
-// Fetch from Le Monde RSS (French - free, no API key!)
-async function fetchLeMonde(category: string, pageSize: number): Promise<NewsArticle[]> {
-  try {
-    const leMondeCategories: Record<string, string> = {
-      general: 'international',
-      technology: 'pixels',
-      business: 'economie',
-      science: 'sciences',
-      health: 'sante',
-      sports: 'sport',
-      entertainment: 'culture',
-    };
-    
-    const leMondeSection = leMondeCategories[category] || 'international';
-    const rssUrl = `https://www.lemonde.fr/${leMondeSection}/rss_full.xml`;
-    
-    const response = await fetch(rssUrl);
-    const xmlText = await response.text();
-    
-    const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
-    
-    return items.slice(0, pageSize).map((item, index) => {
-      const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] || 
-                    item.match(/<title>(.*?)<\/title>/)?.[1] || '';
-      const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
-                         item.match(/<description>(.*?)<\/description>/)?.[1] || '';
-      const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
-      const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
-      const image = item.match(/<media:content[^>]*url="([^"]*)"/)?.[1] || 
-                    item.match(/<enclosure[^>]*url="([^"]*)"/)?.[1] || '';
-      
-      return {
-        id: `lemonde-${Date.now()}-${index}`,
-        title: title.trim(),
-        description: description.replace(/<[^>]*>/g, '').trim(),
-        content: description.replace(/<[^>]*>/g, '').trim(),
-        url: link.trim(),
-        imageUrl: image,
-        publishedAt: pubDate,
-        source: 'Le Monde 🇫🇷',
-        author: 'Le Monde',
-      };
-    }).filter(article => article.title && article.url);
-  } catch (error) {
-    console.error('Le Monde RSS error:', error);
-    return [];
-  }
-}
-
-// Fetch from France 24 RSS (French - free, no API key!)
-async function fetchFrance24(category: string, pageSize: number): Promise<NewsArticle[]> {
-  try {
-    const france24Categories: Record<string, string> = {
-      general: 'france',
-      technology: 'technologies',
-      business: 'economie',
-      science: 'sciences',
-      health: 'sante',
-      sports: 'sports',
-      entertainment: 'culture',
-    };
-    
-    const france24Section = france24Categories[category] || 'france';
-    const rssUrl = `https://www.france24.com/fr/${france24Section}/rss`;
-    
-    const response = await fetch(rssUrl);
-    const xmlText = await response.text();
-    
-    const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
-    
-    return items.slice(0, pageSize).map((item, index) => {
-      const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] || 
-                    item.match(/<title>(.*?)<\/title>/)?.[1] || '';
-      const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
-                         item.match(/<description>(.*?)<\/description>/)?.[1] || '';
-      const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
-      const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
-      const image = item.match(/<media:content[^>]*url="([^"]*)"/)?.[1] || 
-                    item.match(/<media:thumbnail[^>]*url="([^"]*)"/)?.[1] || '';
-      
-      return {
-        id: `france24-${Date.now()}-${index}`,
-        title: title.trim(),
-        description: description.replace(/<[^>]*>/g, '').trim(),
-        content: description.replace(/<[^>]*>/g, '').trim(),
-        url: link.trim(),
-        imageUrl: image,
-        publishedAt: pubDate,
-        source: 'France 24 🇫🇷',
-        author: 'France 24',
-      };
-    }).filter(article => article.title && article.url);
-  } catch (error) {
-    console.error('France 24 RSS error:', error);
-    return [];
-  }
-}
 
 
 export async function GET(request: NextRequest) {
@@ -408,13 +311,11 @@ export async function GET(request: NextRequest) {
     // Guardian supports pagination - fetch more on subsequent pages
     const guardianCount = page === 1 ? 100 : 50; // First page: 100, subsequent: 50 more
     
-    const [guardianArticles, bbcArticles, alJazeeraArticles, reutersArticles, leMondeArticles, france24Articles, newsdataArticles, nytArticles] = await Promise.all([
+    const [guardianArticles, bbcArticles, alJazeeraArticles, reutersArticles, newsdataArticles, nytArticles] = await Promise.all([
       fetchGuardian(category, guardianCount, page), // Up to 200 total from Guardian with pagination
       fetchBBC(category, 30),
       fetchAlJazeera(category, 30),
       fetchReuters(category, 30),
-      fetchLeMonde(category, 30), // French news from Le Monde
-      fetchFrance24(category, 30), // French news from France 24
       fetchNewsData(category, 10),
       fetchNYT(category, 20),
     ]);
@@ -425,8 +326,6 @@ export async function GET(request: NextRequest) {
       ...bbcArticles,
       ...alJazeeraArticles,
       ...reutersArticles,
-      ...leMondeArticles,
-      ...france24Articles,
       ...newsdataArticles,
       ...nytArticles,
     ];
@@ -455,9 +354,9 @@ export async function GET(request: NextRequest) {
 
     console.log(`📰 Fetched ${articles.length} articles from ${sourceFilter || 'all sources'} (page ${page})`);
 
-    return NextResponse.json({
-      articles,
-      totalResults: articles.length,
+      return NextResponse.json({
+        articles,
+        totalResults: articles.length,
       hasMore,
       currentPage: page,
       sources: availableSources,
@@ -469,10 +368,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error fetching news:', error);
-    return NextResponse.json(
+      return NextResponse.json(
       { error: 'Failed to fetch news articles', details: error.message },
-      { status: 500 }
-    );
+        { status: 500 }
+      );
   }
 }
 
