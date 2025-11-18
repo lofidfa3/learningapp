@@ -33,26 +33,6 @@ const nextConfig = {
         net: false,
         tls: false,
       };
-      
-      // Performance: Better tree-shaking for client bundles
-      config.optimization = {
-        ...config.optimization,
-        moduleIds: 'deterministic',
-        runtimeChunk: 'single',
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            vendor: {
-              test: /[\\/]node_modules[\\/]/,
-              name(module) {
-                const packageName = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)?.[1];
-                return `vendor.${packageName?.replace('@', '')}`;
-              },
-              priority: 10,
-            },
-          },
-        },
-      };
     }
     
     return config;
