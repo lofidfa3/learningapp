@@ -81,9 +81,72 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Cache session in memory and localStorage for faster access
+let cachedSession: { user: SupabaseUser | null; profile: UserProfile | null } | null = null;
+const SESSION_CACHE_KEY = 'linguanews_session_cache';
+const SESSION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedSession(): { user: SupabaseUser | null; profile: UserProfile | null; timestamp: number } | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const cached = localStorage.getItem(SESSION_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      const now = Date.now();
+      // Check if cache is still valid (within TTL)
+      if (now - parsed.timestamp < SESSION_CACHE_TTL) {
+        return parsed;
+      } else {
+        // Cache expired, remove it
+        localStorage.removeItem(SESSION_CACHE_KEY);
+      }
+    }
+  } catch (e) {
+    // Ignore cache errors
+  }
+  return null;
+}
+
+function setCachedSession(user: SupabaseUser | null, profile: UserProfile | null) {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    cachedSession = { user, profile };
+    localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
+      user: user ? {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata,
+      } : null,
+      profile,
+      timestamp: Date.now(),
+    }));
+  } catch (e) {
+    // Ignore cache errors
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(() => {
+    // Try to get from cache first for instant initial state
+    if (typeof window !== 'undefined') {
+      const cached = getCachedSession();
+      if (cached?.user) {
+        // Return a minimal user object from cache
+        return cached.user as any;
+      }
+    }
+    return null;
+  });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    // Try to get from cache first
+    if (typeof window !== 'undefined') {
+      const cached = getCachedSession();
+      return cached?.profile || null;
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
 
   // Fetch user profile from Supabase
@@ -103,6 +166,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign up with email and password
   async function signUp(email: string, password: string, displayName: string) {
     try {
+      // Use production domain for email redirects
+      const productionUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://newslings.org';
+      const emailRedirectUrl = typeof window !== 'undefined' 
+        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `${productionUrl}/auth/callback`
+            : `${window.location.origin}/auth/callback`)
+        : `${productionUrl}/auth/callback`;
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -110,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             display_name: displayName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: emailRedirectUrl,
         },
       });
 
@@ -187,9 +258,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign in with Google
   async function signInWithGoogle() {
     try {
+      // Use production domain if available, otherwise use current origin
+      const productionUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://newslings.org';
       const redirectUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}/auth/callback`
-        : 'http://localhost:3000/auth/callback';
+        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `${productionUrl}/auth/callback`
+            : `${window.location.origin}/auth/callback`)
+        : `${productionUrl}/auth/callback`;
         
       console.log('Starting Google OAuth with redirect:', redirectUrl);
       
@@ -224,6 +299,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setUser(null);
       setUserProfile(null);
+      setCachedSession(null, null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(SESSION_CACHE_KEY);
+      }
     } catch (error: any) {
       console.error('Sign out error:', error);
       throw error;
@@ -242,35 +321,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session
+    // Get initial session - check cache first for instant load
+    const cached = getCachedSession();
+    if (cached?.user) {
+      // Use cached data immediately, then verify in background
+      setUser(cached.user as any);
+      setUserProfile(cached.profile);
+      setLoading(false);
+    }
+
+    // Verify session in background
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         if (!mounted) return;
         
         if (error) {
           console.error('Error getting session:', error);
+          setUser(null);
+          setUserProfile(null);
+          setCachedSession(null, null);
           setLoading(false);
           return;
         }
 
-        setUser(session?.user ?? null);
-        if (session?.user) {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        
+        if (currentUser) {
           // Ensure user profile exists with proper display name
           const displayNameFromMetadata = 
-            session.user.user_metadata?.display_name ||
-            session.user.user_metadata?.full_name ||
-            session.user.user_metadata?.name ||
-            session.user.email?.split('@')[0];
+            currentUser.user_metadata?.display_name ||
+            currentUser.user_metadata?.full_name ||
+            currentUser.user_metadata?.name ||
+            currentUser.email?.split('@')[0];
             
           ensureUserProfile(
-            session.user.id,
-            session.user.email || '',
+            currentUser.id,
+            currentUser.email || '',
             displayNameFromMetadata
           ).then(() => {
-            fetchUserProfile(session.user.id).then(profile => {
-              if (mounted) setUserProfile(profile);
+            fetchUserProfile(currentUser.id).then(profile => {
+              if (mounted) {
+                setUserProfile(profile);
+                setCachedSession(currentUser, profile);
+              }
             });
           });
+        } else {
+          setUserProfile(null);
+          setCachedSession(null, null);
         }
         setLoading(false);
       })
@@ -279,6 +378,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           setUser(null);
           setUserProfile(null);
+          setCachedSession(null, null);
           setLoading(false);
         }
       });
@@ -290,18 +390,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
 
       try {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          // Ensure user profile exists
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        
+        if (currentUser) {
+          // Ensure user profile exists with COMPLETE setup (email + OAuth parity)
+          const displayNameFromMetadata = 
+            currentUser.user_metadata?.display_name ||
+            currentUser.user_metadata?.full_name ||
+            currentUser.user_metadata?.name ||
+            currentUser.email?.split('@')[0];
+            
           await ensureUserProfile(
-            session.user.id,
-            session.user.email || '',
-            session.user.user_metadata?.display_name
+            currentUser.id,
+            currentUser.email || '',
+            displayNameFromMetadata
           );
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) setUserProfile(profile);
+          const profile = await fetchUserProfile(currentUser.id);
+          if (mounted) {
+            setUserProfile(profile);
+            setCachedSession(currentUser, profile);
+          }
         } else {
           setUserProfile(null);
+          setCachedSession(null, null);
         }
         setLoading(false);
       } catch (error) {
@@ -309,6 +421,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           setUser(null);
           setUserProfile(null);
+          setCachedSession(null, null);
           setLoading(false);
         }
       }

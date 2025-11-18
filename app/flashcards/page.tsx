@@ -22,28 +22,45 @@ export default function FlashcardsPage() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewWords, setReviewWords] = useState<VocabularyItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [languageInitialized, setLanguageInitialized] = useState(false);
 
+  // Load saved language on initial mount only
   useEffect(() => {
-    if (user && userDataManager) {
+    async function loadSavedLanguage() {
+      if (user && userDataManager && !languageInitialized) {
+        try {
+          const savedLanguage = await userDataManager.getSelectedLanguage();
+          if (savedLanguage) {
+            setSelectedLanguage(savedLanguage);
+          }
+          setLanguageInitialized(true);
+        } catch (error) {
+          console.error('Error loading saved language:', error);
+          setLanguageInitialized(true);
+        }
+      } else if (!user) {
+        setLanguageInitialized(true);
+      }
+    }
+    loadSavedLanguage();
+  }, [user, userDataManager, languageInitialized]);
+
+  // Load vocabulary when language changes (after initialization)
+  useEffect(() => {
+    if (user && userDataManager && languageInitialized) {
       loadUserVocabulary();
-    } else {
+    } else if (!user) {
       setIsLoading(false);
     }
-  }, [user, userDataManager, selectedLanguage]);
+  }, [user, userDataManager, selectedLanguage, languageInitialized]);
 
   async function loadUserVocabulary() {
-    if (!user || !userDataManager) return;
+    if (!user || !userDataManager || !languageInitialized) return;
     
     setIsLoading(true);
     try {
       const userVocabulary = await userDataManager.getVocabulary(selectedLanguage);
       setVocabulary(userVocabulary);
-
-      // Load selected language from user settings
-      const savedLanguage = await userDataManager.getSelectedLanguage();
-      if (savedLanguage && savedLanguage !== selectedLanguage) {
-        setSelectedLanguage(savedLanguage);
-      }
     } catch (error) {
       console.error('Error loading user vocabulary:', error);
     } finally {

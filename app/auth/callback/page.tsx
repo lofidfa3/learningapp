@@ -13,11 +13,21 @@ export default function AuthCallbackPage() {
       try {
         console.log('🔄 Callback page loaded');
         console.log('Current URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
         
-        // Wait a bit for Supabase to set the session
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Handle OAuth callback with hash fragments
+        // Supabase automatically parses hash fragments when getSession() is called
+        if (window.location.hash) {
+          console.log('📝 Processing hash fragment...');
+          // Clear the hash from URL after processing
+          const hash = window.location.hash;
+          window.history.replaceState(null, '', window.location.pathname);
+        }
         
-        // Get the current session
+        // Wait a bit for Supabase to process the hash fragment and set the session
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Get the current session (Supabase automatically parses hash fragments)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
@@ -31,32 +41,30 @@ export default function AuthCallbackPage() {
           console.log('User:', session.user.email);
           console.log('User metadata:', session.user.user_metadata);
           
-          // Ensure user profile exists in database
+          // Ensure user profile exists with COMPLETE defaults (same as email/password signup)
           const displayName = 
             session.user.user_metadata?.full_name || 
             session.user.user_metadata?.name || 
+            session.user.user_metadata?.display_name ||
             session.user.email?.split('@')[0] || 
             'User';
 
           console.log('Creating/updating profile with name:', displayName);
 
-          // Use upsert to create or update profile
-          const { data: profileData, error: profileError } = await supabase
-            .from('users')
-            .upsert({
-              id: session.user.id,
-              email: session.user.email,
-              display_name: displayName,
-            }, {
-              onConflict: 'id'
-            })
-            .select()
-            .single();
+          // Import ensureUserProfile to guarantee consistent profile creation
+          const { ensureUserProfile } = await import('@/lib/create-user-profile');
+          
+          // Use ensureUserProfile to create/update with ALL required fields
+          const profileSuccess = await ensureUserProfile(
+            session.user.id,
+            session.user.email || '',
+            displayName
+          );
 
-          if (profileError) {
-            console.error('❌ Profile error:', profileError);
+          if (profileSuccess) {
+            console.log('✅ Profile ready with all database capabilities');
           } else {
-            console.log('✅ Profile ready:', profileData);
+            console.error('❌ Profile creation/update failed');
           }
 
           // Wait for auth context to update

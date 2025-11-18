@@ -1,0 +1,35 @@
+# Systemd Service File for Next.js App
+# Place this file in /etc/systemd/system/learningapp.service
+# Then run:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable learningapp
+#   sudo systemctl start learningapp
+#   sudo systemctl status learningapp
+
+[Unit]
+Description=Learning App Next.js Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/learningapp
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=learningapp
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/path/to/learningapp
+
+[Install]
+WantedBy=multi-user.target
+

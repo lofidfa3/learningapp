@@ -304,6 +304,208 @@ export async function getUserArticles(userId: string): Promise<NewsArticle[]> {
   }
 }
 
+// Get a single article by ID from database
+export async function getArticleById(
+  userId: string,
+  articleId: string
+): Promise<NewsArticle | null> {
+  try {
+    const { data, error } = await supabase
+      .from('articles')
+      .select('*')
+      .eq('id', articleId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      // If article doesn't exist, return null
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      content: data.content,
+      url: data.url,
+      imageUrl: data.image_url,
+      publishedAt: data.published_at,
+      source: data.source,
+      author: data.author,
+    };
+  } catch (error) {
+    console.error('Error fetching article:', error);
+    return null;
+  }
+}
+
+// Get article with translation and vocabulary
+export async function getArticleWithData(
+  userId: string,
+  articleId: string
+): Promise<{
+  translation?: string;
+  translationLanguage?: string;
+  vocabulary?: any[];
+  vocabularyLanguage?: string;
+} | null> {
+  try {
+    const { data, error } = await supabase
+      .from('articles')
+      .select('translation, translation_language, vocabulary, vocabulary_language')
+      .eq('id', articleId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      // If article doesn't exist yet, that's okay - return null
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
+
+    if (!data) return null;
+
+    return {
+      translation: data.translation || undefined,
+      translationLanguage: data.translation_language || undefined,
+      vocabulary: data.vocabulary ? (Array.isArray(data.vocabulary) ? data.vocabulary : []) : undefined,
+      vocabularyLanguage: data.vocabulary_language || undefined,
+    };
+  } catch (error) {
+    console.error('Error fetching article data:', error);
+    return null;
+  }
+}
+
+// Save article translation
+export async function saveArticleTranslation(
+  userId: string,
+  articleId: string,
+  translation: string,
+  language: string,
+  article?: NewsArticle
+): Promise<boolean> {
+  try {
+    // First, ensure the article exists in the database
+    if (article) {
+      await saveArticle(userId, article);
+    }
+
+    // Then update the translation
+    const { error } = await supabase
+      .from('articles')
+      .update({
+        translation: translation,
+        translation_language: language,
+      })
+      .eq('id', articleId)
+      .eq('user_id', userId);
+
+    if (error) {
+      // If update fails because article doesn't exist, try upsert
+      if (error.code === 'PGRST116' || error.message?.includes('No rows')) {
+        if (article) {
+          // Upsert article with translation
+          const { error: upsertError } = await supabase
+            .from('articles')
+            .upsert({
+              id: article.id,
+              user_id: userId,
+              title: article.title,
+              description: article.description,
+              content: article.content,
+              url: article.url,
+              image_url: article.imageUrl,
+              published_at: article.publishedAt,
+              source: article.source,
+              author: article.author,
+              translation: translation,
+              translation_language: language,
+            }, {
+              onConflict: 'user_id,id',
+            });
+          
+          if (upsertError) throw upsertError;
+          return true;
+        }
+      }
+      throw error;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error saving article translation:', error);
+    return false;
+  }
+}
+
+// Save article vocabulary
+export async function saveArticleVocabulary(
+  userId: string,
+  articleId: string,
+  vocabulary: any[],
+  language: string,
+  article?: NewsArticle
+): Promise<boolean> {
+  try {
+    // First, ensure the article exists in the database
+    if (article) {
+      await saveArticle(userId, article);
+    }
+
+    // Then update the vocabulary
+    const { error } = await supabase
+      .from('articles')
+      .update({
+        vocabulary: vocabulary,
+        vocabulary_language: language,
+      })
+      .eq('id', articleId)
+      .eq('user_id', userId);
+
+    if (error) {
+      // If update fails because article doesn't exist, try upsert
+      if (error.code === 'PGRST116' || error.message?.includes('No rows')) {
+        if (article) {
+          // Upsert article with vocabulary
+          const { error: upsertError } = await supabase
+            .from('articles')
+            .upsert({
+              id: article.id,
+              user_id: userId,
+              title: article.title,
+              description: article.description,
+              content: article.content,
+              url: article.url,
+              image_url: article.imageUrl,
+              published_at: article.publishedAt,
+              source: article.source,
+              author: article.author,
+              vocabulary: vocabulary,
+              vocabulary_language: language,
+            }, {
+              onConflict: 'user_id,id',
+            });
+          
+          if (upsertError) throw upsertError;
+          return true;
+        }
+      }
+      throw error;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error saving article vocabulary:', error);
+    return false;
+  }
+}
+
 // ============================================================================
 // USER ACTIONS TRACKING
 // ============================================================================

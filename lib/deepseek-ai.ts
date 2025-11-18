@@ -12,17 +12,59 @@ export interface DeepSeekMessage {
  * Get configured OpenAI client for OpenRouter
  */
 function getOpenRouterClient(): OpenAI {
-  const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
+  // Try multiple ways to access environment variables
+  const deepseekKey = process.env.DEEPSEEK_API_KEY 
+    || (typeof process !== 'undefined' && (process as any).env?.DEEPSEEK_API_KEY)
+    || (global as any).DEEPSEEK_API_KEY;
+    
+  const openrouterKey = process.env.OPENROUTER_API_KEY 
+    || (typeof process !== 'undefined' && (process as any).env?.OPENROUTER_API_KEY)
+    || (global as any).OPENROUTER_API_KEY;
+    
+  const apiKey = deepseekKey || openrouterKey;
+
+  // Detailed logging for debugging
+  const envInfo = {
+    hasDeepseekKey: !!deepseekKey,
+    hasOpenrouterKey: !!openrouterKey,
+    hasApiKey: !!apiKey,
+    deepseekKeyLength: deepseekKey?.length || 0,
+    openrouterKeyLength: openrouterKey?.length || 0,
+    nodeEnv: process.env.NODE_ENV,
+    vercelEnv: process.env.VERCEL_ENV || 'not set',
+    vercel: process.env.VERCEL || 'not set',
+    allApiKeys: typeof process !== 'undefined' && process.env 
+      ? Object.keys(process.env).filter(k => 
+          k.includes('API') || k.includes('DEEPSEEK') || k.includes('OPENROUTER') || k.includes('MODEL')
+        )
+      : []
+  };
 
   if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY or OPENROUTER_API_KEY is not configured');
+    console.error('❌ Missing API key. Checked DEEPSEEK_API_KEY and OPENROUTER_API_KEY');
+    console.error('Environment check:', JSON.stringify(envInfo, null, 2));
+    throw new Error('DEEPSEEK_API_KEY or OPENROUTER_API_KEY is not configured. Please set one of these environment variables in Vercel.');
   }
+
+  // Validate API key format (should start with sk-)
+  if (!apiKey.startsWith('sk-')) {
+    console.warn('⚠️ API key format may be incorrect (should start with sk-)');
+    console.warn('API key prefix:', apiKey.substring(0, 20));
+  }
+
+  console.log('✅ API key found, creating OpenRouter client', {
+    keyLength: apiKey.length,
+    keyPrefix: apiKey.substring(0, 15) + '...',
+    source: deepseekKey ? 'DEEPSEEK_API_KEY' : 'OPENROUTER_API_KEY',
+    model: process.env.DEEPSEEK_MODEL || 'not set',
+    envInfo: JSON.stringify(envInfo, null, 2)
+  });
 
   return new OpenAI({
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: apiKey,
     defaultHeaders: {
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://learningapp-iota.vercel.app',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://newslings.org',
       'X-Title': 'LinguaNews Language Learning App',
     },
   });
@@ -43,6 +85,13 @@ export async function callDeepSeekAPI(
   const openai = getOpenRouterClient();
 
   try {
+    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
+    console.log('🤖 Calling OpenRouter API:', { 
+      model, 
+      hasApiKey: !!apiKey,
+      messageCount: messages.length 
+    });
+    
     const completion = await openai.chat.completions.create({
       model: model,
       messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
@@ -52,17 +101,41 @@ export async function callDeepSeekAPI(
     });
 
     if (!completion.choices || completion.choices.length === 0) {
+      console.error('❌ No choices in OpenRouter response');
       throw new Error('No response from OpenRouter API');
     }
 
     const content = completion.choices[0].message.content;
     if (!content) {
+      console.error('❌ Empty content in OpenRouter response');
       throw new Error('Empty response from OpenRouter API');
     }
 
+    console.log('✅ OpenRouter API success:', { 
+      model, 
+      responseLength: content.length 
+    });
+    
     return content;
-  } catch (error) {
-    console.error('OpenRouter API call failed:', error);
+  } catch (error: any) {
+    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
+    console.error('❌ OpenRouter API call failed:', {
+      error: error.message,
+      status: error.status,
+      code: error.code,
+      model,
+      hasApiKey: !!apiKey
+    });
+    
+    // Provide more helpful error messages
+    if (error.status === 401 || error.code === 'invalid_api_key') {
+      throw new Error('Invalid API key. Please check DEEPSEEK_API_KEY or OPENROUTER_API_KEY environment variable.');
+    } else if (error.status === 429) {
+      throw new Error('API rate limit exceeded. Please try again later.');
+    } else if (error.status === 400) {
+      throw new Error(`Invalid request: ${error.message}`);
+    }
+    
     throw error;
   }
 }

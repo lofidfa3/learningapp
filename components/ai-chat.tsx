@@ -60,13 +60,25 @@ export function AIChat({ articleContent, articleTitle }: AIChatProps) {
       const data = await response.json();
       console.log('Response data:', data);
 
-      if (data.error && !data.answer) {
-        const errorMessage = data.details || data.error;
+      if (!response.ok || data.error) {
+        const errorMessage = data.details || data.error || 'Failed to get AI response';
+        console.error('AI API error:', errorMessage);
         
         const errorChatMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: `❌ ${errorMessage}`,
+          content: `❌ Error: ${errorMessage}\n\nPlease check that the API keys are configured correctly in the environment variables.`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorChatMessage]);
+        return;
+      }
+
+      if (!data.answer) {
+        const errorChatMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: `❌ No answer received from AI. Please try again.`,
           timestamp: new Date()
         };
         setMessages(prev => [...prev, errorChatMessage]);

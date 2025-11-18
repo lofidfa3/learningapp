@@ -15,6 +15,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
+    // Only redirect if we're sure there's no user (not just loading)
     if (!loading && !user && !isRedirecting) {
       setIsRedirecting(true);
       router.push('/auth');
@@ -23,20 +24,26 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
   }, [user, loading, router, isRedirecting]);
 
-  if (loading || isRedirecting) {
+  // Show loading only if we don't have cached user and are still loading
+  // This prevents the flash when navigating between pages
+  if (loading && !user && !isRedirecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted page-transition">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-xl font-semibold">
-            {loading ? 'Loading...' : 'Redirecting to sign in...'}
-          </h2>
-          <p className="text-muted-foreground">
-            {loading 
-              ? 'Please wait while we prepare your experience'
-              : 'Please sign in to continue'
-            }
-          </p>
+          <h2 className="text-xl font-semibold">Loading...</h2>
+          <p className="text-muted-foreground">Please wait while we prepare your experience</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted page-transition">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <h2 className="text-xl font-semibold">Redirecting to sign in...</h2>
         </div>
       </div>
     );
@@ -46,5 +53,5 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return null; // Will redirect to /auth
   }
 
-  return <>{children}</>;
+  return <div className="page-transition">{children}</div>;
 }

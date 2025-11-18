@@ -14,6 +14,7 @@ const languageCodeMap: Record<string, string> = {
   'Japanese': 'Japanese',
   'Chinese': 'Chinese (Simplified)',
   'Korean': 'Korean',
+  'Turkish': 'Turkish',
 };
 
 export async function POST(request: NextRequest) {
@@ -27,12 +28,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify API key is available
-    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
+    // Verify API key is available - check both environment variables
+    // Use direct process.env access and also try alternative methods
+    const deepseekKey = process.env.DEEPSEEK_API_KEY || (process.env as any).DEEPSEEK_API_KEY;
+    const openrouterKey = process.env.OPENROUTER_API_KEY || (process.env as any).OPENROUTER_API_KEY;
+    const apiKey = deepseekKey || openrouterKey;
+    
+    // Log environment check for debugging - this will show in Vercel logs
+    const envCheck = {
+      hasDeepseekKey: !!deepseekKey,
+      hasOpenrouterKey: !!openrouterKey,
+      hasApiKey: !!apiKey,
+      deepseekKeyLength: deepseekKey?.length || 0,
+      openrouterKeyLength: openrouterKey?.length || 0,
+      model: process.env.DEEPSEEK_MODEL || 'not set',
+      nodeEnv: process.env.NODE_ENV,
+      vercelEnv: process.env.VERCEL_ENV || 'not set',
+      vercel: process.env.VERCEL || 'not set',
+      allApiKeys: Object.keys(process.env).filter(k => 
+        k.includes('API') || k.includes('DEEPSEEK') || k.includes('OPENROUTER') || k.includes('MODEL')
+      )
+    };
+    
+    console.log('🔍 Environment check:', JSON.stringify(envCheck, null, 2));
+
     if (!apiKey) {
       console.error('❌ Missing API key: DEEPSEEK_API_KEY or OPENROUTER_API_KEY');
+      console.error('Full environment check:', JSON.stringify(envCheck, null, 2));
       return NextResponse.json(
-        { error: 'AI service not configured. Please check environment variables.' },
+        { 
+          error: 'AI service not configured. Please check environment variables.',
+          details: 'DEEPSEEK_API_KEY or OPENROUTER_API_KEY must be set in Vercel environment variables.',
+          debug: process.env.NODE_ENV === 'development' ? envCheck : undefined
+        },
         { status: 500 }
       );
     }
@@ -43,7 +71,9 @@ export async function POST(request: NextRequest) {
       textLength: text.length, 
       targetLanguage: targetLangName,
       hasApiKey: !!apiKey,
-      model: process.env.DEEPSEEK_MODEL || 'default'
+      apiKeyLength: apiKey.length,
+      apiKeyPrefix: apiKey.substring(0, 10) + '...',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek/deepseek-chat'
     });
 
     // Use DeepSeek AI for translation
@@ -77,9 +107,35 @@ export async function POST(request: NextRequest) {
       language: targetLanguage,
     });
   } catch (error: any) {
-    console.error('Translation error:', error);
+    console.error('❌ Translation error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      status: error.status,
+      code: error.code
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to translate text';
+    let errorDetails = error.message || 'Unknown error';
+    
+    if (error.message?.includes('API key')) {
+      errorMessage = 'API key configuration error';
+      errorDetails = 'Please check that DEEPSEEK_API_KEY or OPENROUTER_API_KEY is correctly set in Vercel environment variables.';
+    } else if (error.message?.includes('rate limit')) {
+      errorMessage = 'API rate limit exceeded';
+      errorDetails = 'Please try again in a few moments.';
+    } else if (error.message?.includes('Invalid request')) {
+      errorMessage = 'Invalid translation request';
+      errorDetails = error.message;
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to translate text', details: error.message },
+      { 
+        error: errorMessage, 
+        details: errorDetails,
+        originalError: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }

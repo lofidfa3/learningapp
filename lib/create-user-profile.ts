@@ -52,36 +52,57 @@ export async function createUserProfile(data: CreateProfileData): Promise<boolea
 
 /**
  * Ensure user profile exists, create if not
+ * This ensures IDENTICAL profile setup for both email/password and OAuth users
  */
 export async function ensureUserProfile(userId: string, email: string, displayName?: string): Promise<boolean> {
   try {
-    // Check if profile exists
+    // Check if profile exists with all fields
     const { data: existing, error: fetchError } = await supabase
       .from('users')
-      .select('id, display_name')
+      .select('id, display_name, target_language, daily_goal, subscription_status, subscription_plan, articles_per_day')
       .eq('id', userId)
       .single();
 
     if (existing) {
-      // Profile exists, but check if display_name is empty
-      if (!existing.display_name || existing.display_name === '') {
-        console.log('Updating empty display_name for:', userId);
+      // Profile exists - check if it has all required fields (especially for OAuth users)
+      const needsUpdate = 
+        !existing.display_name || 
+        existing.display_name === '' ||
+        !existing.target_language ||
+        !existing.daily_goal ||
+        !existing.subscription_status ||
+        !existing.subscription_plan ||
+        !existing.articles_per_day;
+
+      if (needsUpdate) {
+        console.log('Updating incomplete profile for:', userId);
         const { error: updateError } = await supabase
           .from('users')
-          .update({ display_name: displayName || email.split('@')[0] })
+          .update({ 
+            display_name: displayName || existing.display_name || email.split('@')[0],
+            target_language: existing.target_language || 'italian',
+            daily_goal: existing.daily_goal || 10,
+            subscription_status: existing.subscription_status || 'free',
+            subscription_plan: existing.subscription_plan || 'basic',
+            articles_per_day: existing.articles_per_day || 5,
+            notifications_enabled: true,
+          })
           .eq('id', userId);
         
         if (updateError) {
-          console.error('Error updating display_name:', updateError);
+          console.error('Error updating profile:', updateError);
+          return false;
         }
+        console.log('✅ Profile updated with all required fields');
       } else {
-        console.log('User profile already exists with display_name');
+        console.log('✅ User profile already complete');
       }
       return true;
     }
 
-    // Profile doesn't exist, create it
+    // Profile doesn't exist, create it with FULL defaults
     if (fetchError && fetchError.code === 'PGRST116') {
+      console.log('Creating new profile for:', userId);
       return await createUserProfile({
         id: userId,
         email,

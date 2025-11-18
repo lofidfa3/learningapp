@@ -49,7 +49,7 @@ export default function RootLayout({
               <ToastProvider />
               <div className="retro-grid min-h-screen flex flex-col" style={{ position: 'relative' }}>
                 <Navigation />
-                <main className="flex-1" style={{ position: 'relative', zIndex: 1 }}>
+                <main className="flex-1 page-transition" style={{ position: 'relative', zIndex: 1 }}>
                   <Suspense fallback={<LoadingFallback />}>
                     {children}
                   </Suspense>

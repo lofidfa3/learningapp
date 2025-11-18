@@ -48,30 +48,23 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('DeepSeek AI error:', error);
+    console.error('❌ DeepSeek AI error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     
-    // Provide a helpful fallback response
-    const fallbackResponse = `I apologize, but I'm having trouble processing your question right now. 
-
-Based on your question "${userQuestion}", here are some general tips for language learning with news articles:
-
-1. **Identify Key Vocabulary**: Look for important words and phrases in the article
-2. **Understand Context**: Try to understand how words are used in different contexts
-3. **Practice Reading**: Read similar articles to reinforce your learning
-4. **Ask Specific Questions**: Try asking about specific words, phrases, or concepts
-
-Please try again in a moment, or rephrase your question to be more specific.`;
-
+    // Return actual error so client can handle it properly
     return NextResponse.json(
       {
-        answer: fallbackResponse,
+        error: error.message || 'AI service temporarily unavailable',
+        details: error.message,
         question: userQuestion,
         articleTitle: articleTitle || 'News Article',
-        timestamp: new Date().toISOString(),
-        error: 'AI service temporarily unavailable',
-        details: error.message
+        timestamp: new Date().toISOString()
       },
-      { status: 200 } // Return 200 with fallback instead of 500
+      { status: 500 }
     );
   }
 }

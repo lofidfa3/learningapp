@@ -27,16 +27,10 @@ const nextConfig = {
     return config;
   },
   
-  compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
-  },
-  
-  // Experimental features
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
+  // Disable console removal for now to avoid build issues
+  // compiler: {
+  //   removeConsole: process.env.NODE_ENV === 'production',
+  // },
 };
 
 module.exports = nextConfig;

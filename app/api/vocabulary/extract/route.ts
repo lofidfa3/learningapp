@@ -13,6 +13,7 @@ const languageCodeMap: Record<string, string> = {
   'Japanese': 'Japanese',
   'Chinese': 'Chinese (Simplified)',
   'Korean': 'Korean',
+  'Turkish': 'Turkish',
 };
 
 export async function POST(request: NextRequest) {

@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useUserData } from '@/lib/use-user-data';
 import { useUserActions } from '@/lib/use-user-actions';
 import { useSupabaseData } from '@/lib/use-supabase-data';
-import { actionToasts } from '@/lib/toast-utils';
+import { actionToasts, showError } from '@/lib/toast-utils';
 
 export default function ArticlePage() {
   const params = useParams();
@@ -35,17 +35,83 @@ export default function ArticlePage() {
   const [activeTab, setActiveTab] = useState('original');
   const [isRead, setIsRead] = useState(false);
 
-  // Load article from session storage
+  // Load article from session storage or database, and load saved translation/vocabulary
   useEffect(() => {
-    const savedArticles = sessionStorage.getItem('current-articles');
-    if (savedArticles) {
-      const articles = JSON.parse(savedArticles);
-      const foundArticle = articles.find((a: NewsArticle) => a.id === articleId);
-      if (foundArticle) {
-        setArticle(foundArticle);
+    let mounted = true;
+
+    async function loadArticleAndData() {
+      if (!user || !articleId) return;
+
+      try {
+        const { 
+          getArticleWithData, 
+          saveArticle, 
+          getArticleById 
+        } = await import('@/lib/supabase-services');
+
+        // Step 1: Try to load article from sessionStorage first (faster)
+        const savedArticles = sessionStorage.getItem('current-articles');
+        let foundArticle: NewsArticle | null = null;
+
+        if (savedArticles) {
+          try {
+            const articles = JSON.parse(savedArticles);
+            foundArticle = articles.find((a: NewsArticle) => a.id === articleId) || null;
+          } catch (e) {
+            console.error('Error parsing sessionStorage articles:', e);
+          }
+        }
+
+        // Step 2: If not in sessionStorage, try to load from database
+        if (!foundArticle) {
+          foundArticle = await getArticleById(user.id, articleId);
+        }
+
+        // Step 3: Set article if found
+        if (foundArticle && mounted) {
+          setArticle(foundArticle);
+          // Ensure article is saved to database (upsert - won't duplicate)
+          await saveArticle(user.id, foundArticle);
+        }
+
+        // Step 4: ALWAYS load translation and vocabulary from database (independent of article source)
+        const savedData = await getArticleWithData(user.id, articleId);
+        
+        if (mounted && savedData) {
+          // Check if saved translation language matches current target language
+          const currentLanguageName = SUPPORTED_LANGUAGES[targetLanguage as keyof typeof SUPPORTED_LANGUAGES]?.name;
+          const translationMatches = !savedData.translationLanguage || savedData.translationLanguage === currentLanguageName;
+          
+          if (savedData.translation && translationMatches) {
+            setTranslation(savedData.translation);
+            // Automatically switch to translation tab if translation exists
+            setActiveTab('translation');
+            console.log('✅ Loaded saved translation - switched to translation tab');
+          } else if (savedData.translation && !translationMatches) {
+            console.log('⚠️ Saved translation exists but for different language:', savedData.translationLanguage, 'vs', currentLanguageName);
+          }
+          
+          // Check if saved vocabulary language matches current target language
+          const vocabularyMatches = !savedData.vocabularyLanguage || savedData.vocabularyLanguage === currentLanguageName;
+          
+          if (savedData.vocabulary && savedData.vocabulary.length > 0 && vocabularyMatches) {
+            setVocabulary(savedData.vocabulary);
+            console.log('✅ Loaded saved vocabulary:', savedData.vocabulary.length, 'items');
+          } else if (savedData.vocabulary && savedData.vocabulary.length > 0 && !vocabularyMatches) {
+            console.log('⚠️ Saved vocabulary exists but for different language:', savedData.vocabularyLanguage, 'vs', currentLanguageName);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading article and data:', error);
       }
     }
-  }, [articleId]); // Only depend on articleId, not article itself
+
+    loadArticleAndData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [articleId, user?.id]); // Only depend on articleId and user.id - don't depend on article
 
   // Check read status when article is loaded
   useEffect(() => {
@@ -78,13 +144,37 @@ export default function ArticlePage() {
       });
 
       const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('Translation API error:', data);
+        showError(data.error || 'Translation failed', data.details || 'Please try again.');
+        return;
+      }
+
       if (data.translatedText) {
         setTranslation(data.translatedText);
         setActiveTab('translation');
         actionToasts.translationComplete();
+        
+        // Save translation to database
+        if (user && article) {
+          try {
+            const { saveArticleTranslation } = await import('@/lib/supabase-services');
+            const languageInfo = SUPPORTED_LANGUAGES[targetLanguage as keyof typeof SUPPORTED_LANGUAGES];
+            await saveArticleTranslation(user.id, article.id, data.translatedText, languageInfo.name, article);
+            console.log('✅ Translation saved to database');
+          } catch (error) {
+            console.error('Error saving translation:', error);
+            // Don't fail the request if saving fails
+          }
+        }
+      } else if (data.error) {
+        console.error('Translation error:', data.error);
+        showError(data.error || 'Translation failed', 'Please check your API configuration.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Translation failed:', error);
+      showError('Translation failed', error.message || 'Please try again.');
     } finally {
       setIsTranslating(false);
     }
@@ -112,6 +202,19 @@ export default function ArticlePage() {
       if (data.vocabulary) {
         setVocabulary(data.vocabulary);
         actionToasts.vocabularyExtracted(data.vocabulary.length);
+        
+        // Save vocabulary to database
+        if (user && article) {
+          try {
+            const { saveArticleVocabulary } = await import('@/lib/supabase-services');
+            const languageInfo = SUPPORTED_LANGUAGES[targetLanguage as keyof typeof SUPPORTED_LANGUAGES];
+            await saveArticleVocabulary(user.id, article.id, data.vocabulary, languageInfo.name, article);
+            console.log('✅ Vocabulary saved to database');
+          } catch (error) {
+            console.error('Error saving vocabulary:', error);
+            // Don't fail the request if saving fails
+          }
+        }
       }
     } catch (error) {
       console.error('Vocabulary extraction failed:', error);
@@ -267,13 +370,16 @@ export default function ArticlePage() {
                 onClick={handleTranslate}
                 disabled={isTranslating}
                 size="sm"
+                variant={translation ? "outline" : "default"}
               >
                 {isTranslating ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : translation ? (
+                  <Volume2 className="h-4 w-4 mr-2" />
                 ) : (
                   <Volume2 className="h-4 w-4 mr-2" />
                 )}
-                Translate Article
+                {translation ? 'Translation Ready' : 'Translate Article'}
               </Button>
             </AuthPrompt>
 

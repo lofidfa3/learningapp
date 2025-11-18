@@ -58,6 +58,7 @@ export const SUPPORTED_LANGUAGES = {
   japanese: { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
   chinese: { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
   korean: { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+  turkish: { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
 } as const;
 
 export type LanguageCode = keyof typeof SUPPORTED_LANGUAGES;

@@ -43,10 +43,11 @@ export function Navigation() {
           <button
             onClick={() => {
               if (pathname !== '/') {
+                router.prefetch('/');
                 router.push('/');
               }
             }}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none"
+            className="flex items-center gap-2 hover:opacity-80 transition-all duration-200 cursor-pointer bg-transparent border-none transform hover:scale-105"
             style={{ position: 'relative', zIndex: 1003, pointerEvents: 'auto' }}
           >
             <BookOpen className="h-6 w-6 text-primary" />
@@ -64,18 +65,26 @@ export function Navigation() {
                   key={item.href}
                   onClick={() => {
                     if (!isActive) {
+                      // Prefetch the route for faster navigation
+                      router.prefetch(item.href);
                       router.push(item.href);
                     }
                   }}
+                  onMouseEnter={() => {
+                    // Prefetch on hover for even faster navigation
+                    if (!isActive) {
+                      router.prefetch(item.href);
+                    }
+                  }}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer bg-transparent border-none',
+                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer bg-transparent border-none',
                     isActive
                       ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent transform hover:scale-105'
                   )}
                   style={{ position: 'relative', zIndex: 1004, pointerEvents: 'auto' }}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 transition-transform duration-200" />
                   <span>{item.label}</span>
                 </button>
               );
@@ -93,19 +102,25 @@ export function Navigation() {
                   key={item.href}
                   onClick={() => {
                     if (!isActive) {
+                      router.prefetch(item.href);
                       router.push(item.href);
                     }
                   }}
+                  onMouseEnter={() => {
+                    if (!isActive) {
+                      router.prefetch(item.href);
+                    }
+                  }}
                   className={cn(
-                    'p-2 rounded-md transition-colors cursor-pointer bg-transparent border-none',
+                    'p-2 rounded-md transition-all duration-200 cursor-pointer bg-transparent border-none',
                     isActive
                       ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent transform hover:scale-110'
                   )}
                   title={item.label}
                   style={{ position: 'relative', zIndex: 1004, pointerEvents: 'auto' }}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5 transition-transform duration-200" />
                 </button>
               );
             })}

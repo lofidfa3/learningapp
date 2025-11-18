@@ -22,28 +22,57 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const category = searchParams.get('category') || 'general';
   const page = searchParams.get('page') || '1';
+  const pageSize = parseInt(searchParams.get('pageSize') || '50'); // Increased from 20 to 50
 
   try {
     const guardianSection = categoryMap[category] || 'world';
     
     // Using The Guardian Open Platform API (completely free)
-    const response = await axios.get('https://content.guardianapis.com/search', {
-      params: {
-        'api-key': GUARDIAN_API_KEY,
-        section: guardianSection,
-        'show-fields': 'headline,trailText,body,thumbnail,byline',
-        'page-size': 20,
-        page: page,
-        'order-by': 'newest',
-      },
+    // Fetch multiple pages in parallel for more articles
+    const pagesToFetch = Math.min(3, Math.ceil(pageSize / 20)); // Fetch up to 3 pages
+    const pagePromises = [];
+    
+    for (let i = 0; i < pagesToFetch; i++) {
+      const pageNum = parseInt(page) + i;
+      pagePromises.push(
+        axios.get('https://content.guardianapis.com/search', {
+          params: {
+            'api-key': GUARDIAN_API_KEY,
+            section: guardianSection,
+            'show-fields': 'headline,trailText,body,thumbnail,byline',
+            'page-size': 50, // Increased from 20 to 50 per page
+            page: pageNum.toString(),
+            'order-by': 'newest',
+          },
+        })
+      );
+    }
+    
+    // Fetch all pages in parallel
+    const responses = await Promise.all(pagePromises);
+    
+    // Combine all articles from all pages
+    let allArticles: any[] = [];
+    responses.forEach((response) => {
+      if (response.data?.response?.results) {
+        allArticles = allArticles.concat(response.data.response.results);
+      }
     });
+    
+    // Remove duplicates based on article ID
+    const uniqueArticles = Array.from(
+      new Map(allArticles.map((article) => [article.id, article])).values()
+    );
+    
+    // Limit to requested page size
+    const limitedArticles = uniqueArticles.slice(0, pageSize);
 
-    const articles: NewsArticle[] = response.data.response.results
+    const articles: NewsArticle[] = limitedArticles
       .filter((article: any) => article.fields?.headline && article.fields?.trailText)
       .map((article: any, index: number) => {
         // Extract text content from HTML body
         const bodyText = article.fields?.body 
-          ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 1000)
+          ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000) // Increased from 1000 to 2000
           : article.fields?.trailText || '';
 
         return {
@@ -59,25 +88,52 @@ export async function GET(request: NextRequest) {
         };
       });
 
+    // Get total from first response
+    const totalResults = responses[0]?.data?.response?.total || articles.length;
+
     return NextResponse.json({
       articles,
-      totalResults: response.data.response.total,
+      totalResults,
+      hasMore: articles.length >= pageSize && totalResults > articles.length,
+      currentPage: parseInt(page),
     });
   } catch (error: any) {
     console.error('Error fetching news:', error);
     
     // Fallback to GNews API (also free tier available)
     try {
-      const gnewsResponse = await axios.get('https://gnews.io/api/v4/top-headlines', {
-        params: {
-          category: category === 'general' ? 'world' : category,
-          lang: 'en',
-          max: 20,
-          apikey: process.env.GNEWS_API_KEY || 'demo', // Free tier: 100 requests/day
-        },
+      // Fetch from multiple categories for more variety
+      const categoriesToFetch = category === 'general' 
+        ? ['world', 'general', 'breaking-news']
+        : [category];
+      
+      const gnewsPromises = categoriesToFetch.map(cat =>
+        axios.get('https://gnews.io/api/v4/top-headlines', {
+          params: {
+            category: cat === 'general' ? 'world' : cat,
+            lang: 'en',
+            max: 30, // Increased from 20
+            apikey: process.env.GNEWS_API_KEY || 'demo', // Free tier: 100 requests/day
+          },
+        })
+      );
+      
+      const gnewsResponses = await Promise.all(gnewsPromises);
+      
+      // Combine articles from all categories
+      let allGnewsArticles: any[] = [];
+      gnewsResponses.forEach((response) => {
+        if (response.data?.articles) {
+          allGnewsArticles = allGnewsArticles.concat(response.data.articles);
+        }
       });
+      
+      // Remove duplicates
+      const uniqueGnewsArticles = Array.from(
+        new Map(allGnewsArticles.map((article) => [article.url, article])).values()
+      ).slice(0, pageSize);
 
-      const articles: NewsArticle[] = gnewsResponse.data.articles.map((article: any, index: number) => ({
+      const articles: NewsArticle[] = uniqueGnewsArticles.map((article: any, index: number) => ({
         id: `gnews-${Date.now()}-${index}`,
         title: article.title,
         description: article.description,
@@ -91,7 +147,9 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         articles,
-        totalResults: gnewsResponse.data.totalArticles,
+        totalResults: articles.length,
+        hasMore: false,
+        currentPage: parseInt(page),
       });
     } catch (fallbackError) {
       console.error('Fallback news fetch also failed:', fallbackError);

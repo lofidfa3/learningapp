@@ -1,0 +1,89 @@
+# Nginx Configuration for Next.js App
+# Place this file in /etc/nginx/sites-available/learningapp
+# Then create symlink: sudo ln -s /etc/nginx/sites-available/learningapp /etc/nginx/sites-enabled/
+# Test config: sudo nginx -t
+# Reload: sudo systemctl reload nginx
+
+# Upstream Next.js server
+upstream nextjs_backend {
+    server 127.0.0.1:3000;
+    keepalive 64;
+}
+
+# HTTP server - redirect to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name yourdomain.com www.yourdomain.com; # Replace with your domain
+
+    # Redirect all HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name yourdomain.com www.yourdomain.com; # Replace with your domain
+
+    # SSL Configuration (using Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
+    # Increase body size limit for API routes
+    client_max_body_size 10M;
+
+    # Proxy settings
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+
+    # Static files caching
+    location /_next/static {
+        proxy_pass http://nextjs_backend;
+        proxy_cache_valid 200 60m;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API routes
+    location /api {
+        proxy_pass http://nextjs_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # All other requests
+    location / {
+        proxy_pass http://nextjs_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
