@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NewsArticle } from '@/lib/types';
 
 // Multi-source news aggregator - fetches from multiple free news APIs
-// Sources: The Guardian, New York Times, BBC RSS, Reddit News
+// Sources: The Guardian, New York Times (optional), BBC RSS
 
 const GUARDIAN_API_KEY = process.env.GUARDIAN_API_KEY || 'test';
 const NYT_API_KEY = process.env.NYT_API_KEY; // Optional: Get at developer.nytimes.com
@@ -149,53 +149,6 @@ async function fetchBBC(category: string, pageSize: number): Promise<NewsArticle
   }
 }
 
-// Fetch from CNN RSS (free, no API key!)
-async function fetchCNN(category: string, pageSize: number): Promise<NewsArticle[]> {
-  try {
-    const cnnCategoryMap: Record<string, string> = {
-      general: 'world',
-      technology: 'tech',
-      business: 'business',
-      science: 'tech',
-      health: 'health',
-      sports: 'sport',
-      entertainment: 'entertainment',
-    };
-    
-    const cnnSection = cnnCategoryMap[category] || 'world';
-    const rssUrl = `http://rss.cnn.com/rss/cnn_${cnnSection}.rss`;
-    
-    const response = await fetch(rssUrl);
-    const xmlText = await response.text();
-    
-    // Simple XML parsing
-    const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
-    
-    return items.slice(0, pageSize).map((item, index) => {
-      const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ||
-                    item.match(/<title>(.*?)<\/title>/)?.[1] || '';
-      const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
-                         item.match(/<description>(.*?)<\/description>/)?.[1] || '';
-      const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
-      const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
-      
-      return {
-        id: `cnn-${Date.now()}-${index}`,
-        title: title.trim(),
-        description: description.replace(/<[^>]*>/g, '').trim(),
-        content: description.replace(/<[^>]*>/g, '').trim(),
-        url: link.trim(),
-        imageUrl: '',
-        publishedAt: pubDate,
-        source: 'CNN',
-        author: 'CNN',
-      };
-    }).filter(article => article.title && article.url);
-  } catch (error) {
-    console.error('CNN RSS error:', error);
-    return [];
-  }
-}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -205,11 +158,10 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch from all sources in parallel for variety
-    const [guardianArticles, nytArticles, bbcArticles, cnnArticles] = await Promise.all([
+    const [guardianArticles, nytArticles, bbcArticles] = await Promise.all([
       fetchGuardian(category, Math.ceil(pageSize / 2)),
-      fetchNYT(category, Math.ceil(pageSize / 6)),
+      fetchNYT(category, Math.ceil(pageSize / 4)),
       fetchBBC(category, Math.ceil(pageSize / 4)),
-      fetchCNN(category, Math.ceil(pageSize / 6)),
     ]);
 
     // Combine articles from all sources
@@ -217,7 +169,6 @@ export async function GET(request: NextRequest) {
       ...guardianArticles,
       ...nytArticles,
       ...bbcArticles,
-      ...cnnArticles,
     ];
 
     // Remove duplicates by URL
