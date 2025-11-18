@@ -129,7 +129,7 @@ async function fetchBBC(category: string, pageSize: number): Promise<NewsArticle
                          item.match(/<description>(.*?)<\/description>/)?.[1] || '';
       const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
       const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
-      const thumbnail = item.match(/<media:thumbnail[^>]*url="([^"]*)"/)? [1] || '';
+      const thumbnail = item.match(/<media:thumbnail[^>]*url="([^"]*)"/)?.[1] || '';
       
       return {
         id: `bbc-${Date.now()}-${index}`,
