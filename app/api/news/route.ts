@@ -29,41 +29,56 @@ const nytCategoryMap: Record<string, string> = {
   entertainment: 'arts',
 };
 
-// Fetch from The Guardian
-async function fetchGuardian(category: string, pageSize: number): Promise<NewsArticle[]> {
+// Fetch from The Guardian with pagination support
+async function fetchGuardian(category: string, pageSize: number, page: number = 1): Promise<NewsArticle[]> {
   try {
     const guardianSection = guardianCategoryMap[category] || 'world';
-    const url = new URL('https://content.guardianapis.com/search');
-    url.searchParams.set('api-key', GUARDIAN_API_KEY);
-    url.searchParams.set('section', guardianSection);
-    url.searchParams.set('show-fields', 'headline,trailText,body,thumbnail,byline');
-    url.searchParams.set('page-size', Math.min(pageSize, 50).toString());
-    url.searchParams.set('order-by', 'newest');
     
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    // Guardian API allows max 50 per page, fetch multiple pages if needed
+    const pagesToFetch = Math.ceil(pageSize / 50);
+    const allArticles: NewsArticle[] = [];
     
-    if (!data?.response?.results) return [];
-    
-    return data.response.results
-      .filter((article: any) => article.fields?.headline && article.fields?.trailText)
-      .map((article: any, index: number) => {
-        const bodyText = article.fields?.body 
-          ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000)
-          : article.fields?.trailText || '';
+    for (let i = 0; i < pagesToFetch && i < 4; i++) { // Max 4 pages = 200 articles from Guardian
+      const url = new URL('https://content.guardianapis.com/search');
+      url.searchParams.set('api-key', GUARDIAN_API_KEY);
+      url.searchParams.set('section', guardianSection);
+      url.searchParams.set('show-fields', 'headline,trailText,body,thumbnail,byline');
+      url.searchParams.set('page-size', '50');
+      url.searchParams.set('page', (page + i).toString());
+      url.searchParams.set('order-by', 'newest');
+      
+      const response = await fetch(url.toString());
+      const data = await response.json();
+      
+      if (!data?.response?.results) break;
+      
+      const articles = data.response.results
+        .filter((article: any) => article.fields?.headline && article.fields?.trailText)
+        .map((article: any, index: number) => {
+          const bodyText = article.fields?.body 
+            ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000)
+            : article.fields?.trailText || '';
 
-        return {
-          id: `guardian-${article.id}-${index}`,
-          title: article.fields.headline || article.webTitle,
-          description: article.fields.trailText || '',
-          content: bodyText,
-          url: article.webUrl,
-          imageUrl: article.fields.thumbnail,
-          publishedAt: article.webPublicationDate,
-          source: 'The Guardian',
-          author: article.fields.byline || 'The Guardian',
-        };
-      });
+          return {
+            id: `guardian-${article.id}-${page}-${i}-${index}`,
+            title: article.fields.headline || article.webTitle,
+            description: article.fields.trailText || '',
+            content: bodyText,
+            url: article.webUrl,
+            imageUrl: article.fields.thumbnail,
+            publishedAt: article.webPublicationDate,
+            source: 'The Guardian',
+            author: article.fields.byline || 'The Guardian',
+          };
+        });
+      
+      allArticles.push(...articles);
+      
+      // If we got less than 50 articles, no more pages available
+      if (articles.length < 50) break;
+    }
+    
+    return allArticles.slice(0, pageSize);
   } catch (error) {
     console.error('Guardian API error:', error);
     return [];
@@ -286,19 +301,22 @@ async function fetchNewsData(category: string, pageSize: number): Promise<NewsAr
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const category = searchParams.get('category') || 'general';
-  const page = searchParams.get('page') || '1';
+  const page = parseInt(searchParams.get('page') || '1');
   const pageSize = parseInt(searchParams.get('pageSize') || '100');
   const sourceFilter = searchParams.get('source'); // New: filter by source
 
   try {
     // Fetch MORE articles from all sources in parallel
+    // Guardian supports pagination - fetch more on subsequent pages
+    const guardianCount = page === 1 ? 100 : 50; // First page: 100, subsequent: 50 more
+    
     const [guardianArticles, bbcArticles, alJazeeraArticles, reutersArticles, newsdataArticles, nytArticles] = await Promise.all([
-      fetchGuardian(category, 50), // Maximum from Guardian
-      fetchBBC(category, 30), // Increased from 20
-      fetchAlJazeera(category, 30), // Increased from 15
-      fetchReuters(category, 30), // Increased from 15
+      fetchGuardian(category, guardianCount, page), // Up to 200 total from Guardian with pagination
+      fetchBBC(category, 30),
+      fetchAlJazeera(category, 30),
+      fetchReuters(category, 30),
       fetchNewsData(category, 10),
-      fetchNYT(category, 20), // Increased from 15
+      fetchNYT(category, 20),
     ]);
 
     // Combine articles from all sources
@@ -330,13 +348,16 @@ export async function GET(request: NextRequest) {
     // Get all available sources for filter UI
     const availableSources = Array.from(new Set(uniqueArticles.map(a => a.source)));
 
-    console.log(`📰 Fetched ${articles.length} articles from ${sourceFilter || 'all sources'}`);
+    // Check if more articles are available (for Guardian pagination)
+    const hasMore = page < 4 && guardianArticles.length >= guardianCount; // Up to 4 pages
+
+    console.log(`📰 Fetched ${articles.length} articles from ${sourceFilter || 'all sources'} (page ${page})`);
 
     return NextResponse.json({
       articles,
       totalResults: articles.length,
-      hasMore: articles.length >= pageSize,
-      currentPage: parseInt(page),
+      hasMore,
+      currentPage: page,
       sources: availableSources,
       activeSource: sourceFilter || 'all',
       sourceCounts: availableSources.reduce((acc, source) => {

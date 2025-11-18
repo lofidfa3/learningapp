@@ -252,33 +252,41 @@ export default function HomePage() {
             ))}
           </div>
           
-          {hasMore && (
-            <div className="mt-8 flex justify-center">
+          {/* Load More Button - Always visible until page 4 */}
+          {(hasMore || currentPage < 4) && articles.length > 0 && (
+            <div className="mt-12 flex justify-center">
               <Button
                 onClick={loadMore}
                 disabled={isLoadingMore}
-                variant="outline"
+                variant="default"
                 size="lg"
-                className="min-w-[200px]"
+                className="min-w-[250px] shadow-lg"
               >
                 {isLoadingMore ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading more articles...
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Loading more news...
                   </>
                 ) : (
                   <>
-                    <Zap className="mr-2 h-4 w-4" />
-                    Load More Articles
+                    <Zap className="mr-2 h-5 w-5" />
+                    Load More News
                   </>
                 )}
               </Button>
             </div>
           )}
           
-          {!hasMore && articles.length > 0 && (
-            <div className="mt-8 text-center text-muted-foreground">
-              <p>You've seen all available articles in this category.</p>
+          {currentPage >= 4 && articles.length > 0 && (
+            <div className="mt-12 text-center">
+              <div className="inline-block bg-muted rounded-lg px-6 py-4">
+                <p className="text-muted-foreground font-medium">
+                  🎉 You've reached the end! Over 400+ articles loaded.
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Try a different category or source for more news.
+                </p>
+              </div>
             </div>
           )}
         </>
