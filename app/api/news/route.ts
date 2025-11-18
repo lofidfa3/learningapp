@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 import { NewsArticle } from '@/lib/types';
 
 // Using The Guardian API - completely free, no API key required for basic usage
@@ -34,18 +33,15 @@ export async function GET(request: NextRequest) {
     
     for (let i = 0; i < pagesToFetch; i++) {
       const pageNum = parseInt(page) + i;
-      pagePromises.push(
-        axios.get('https://content.guardianapis.com/search', {
-          params: {
-            'api-key': GUARDIAN_API_KEY,
-            section: guardianSection,
-            'show-fields': 'headline,trailText,body,thumbnail,byline',
-            'page-size': 50, // Increased from 20 to 50 per page
-            page: pageNum.toString(),
-            'order-by': 'newest',
-          },
-        })
-      );
+      const url = new URL('https://content.guardianapis.com/search');
+      url.searchParams.set('api-key', GUARDIAN_API_KEY);
+      url.searchParams.set('section', guardianSection);
+      url.searchParams.set('show-fields', 'headline,trailText,body,thumbnail,byline');
+      url.searchParams.set('page-size', '50');
+      url.searchParams.set('page', pageNum.toString());
+      url.searchParams.set('order-by', 'newest');
+      
+      pagePromises.push(fetch(url.toString()).then(res => res.json()));
     }
     
     // Fetch all pages in parallel
@@ -54,8 +50,8 @@ export async function GET(request: NextRequest) {
     // Combine all articles from all pages
     let allArticles: any[] = [];
     responses.forEach((response) => {
-      if (response.data?.response?.results) {
-        allArticles = allArticles.concat(response.data.response.results);
+      if (response?.response?.results) {
+        allArticles = allArticles.concat(response.response.results);
       }
     });
     
@@ -89,7 +85,7 @@ export async function GET(request: NextRequest) {
       });
 
     // Get total from first response
-    const totalResults = responses[0]?.data?.response?.total || articles.length;
+    const totalResults = responses[0]?.response?.total || articles.length;
 
     return NextResponse.json({
       articles,
@@ -107,24 +103,22 @@ export async function GET(request: NextRequest) {
         ? ['world', 'general', 'breaking-news']
         : [category];
       
-      const gnewsPromises = categoriesToFetch.map(cat =>
-        axios.get('https://gnews.io/api/v4/top-headlines', {
-          params: {
-            category: cat === 'general' ? 'world' : cat,
-            lang: 'en',
-            max: 30, // Increased from 20
-            apikey: process.env.GNEWS_API_KEY || 'demo', // Free tier: 100 requests/day
-          },
-        })
-      );
+      const gnewsPromises = categoriesToFetch.map(cat => {
+        const url = new URL('https://gnews.io/api/v4/top-headlines');
+        url.searchParams.set('category', cat === 'general' ? 'world' : cat);
+        url.searchParams.set('lang', 'en');
+        url.searchParams.set('max', '30');
+        url.searchParams.set('apikey', process.env.GNEWS_API_KEY || 'demo');
+        return fetch(url.toString()).then(res => res.json());
+      });
       
       const gnewsResponses = await Promise.all(gnewsPromises);
       
       // Combine articles from all categories
       let allGnewsArticles: any[] = [];
       gnewsResponses.forEach((response) => {
-        if (response.data?.articles) {
-          allGnewsArticles = allGnewsArticles.concat(response.data.articles);
+        if (response?.articles) {
+          allGnewsArticles = allGnewsArticles.concat(response.articles);
         }
       });
       
