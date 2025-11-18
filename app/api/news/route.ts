@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { NewsArticle } from '@/lib/types';
 
-// Using The Guardian API - completely free, no API key required for basic usage
-// Alternative: Can also use GNews API free tier or NewsData.io
+// Multi-source news aggregator - fetches from multiple free news APIs
+// Sources: The Guardian, NewsAPI, NewsData.io, GNews
 
-const GUARDIAN_API_KEY = process.env.GUARDIAN_API_KEY || 'test'; // Guardian allows 'test' key for development
+const GUARDIAN_API_KEY = process.env.GUARDIAN_API_KEY || 'test';
+const NEWSAPI_KEY = process.env.NEWSAPI_KEY; // Get free key at newsapi.org
+const NEWSDATA_KEY = process.env.NEWSDATA_KEY; // Get free key at newsdata.io
+const GNEWS_KEY = process.env.GNEWS_API_KEY; // Get free key at gnews.io
 
-// Category mapping from our categories to Guardian sections
-const categoryMap: Record<string, string> = {
+// Category mappings for different APIs
+const guardianCategoryMap: Record<string, string> = {
   general: 'world',
   technology: 'technology',
   business: 'business',
@@ -17,62 +20,41 @@ const categoryMap: Record<string, string> = {
   entertainment: 'culture',
 };
 
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const category = searchParams.get('category') || 'general';
-  const page = searchParams.get('page') || '1';
-  const pageSize = parseInt(searchParams.get('pageSize') || '50'); // Increased from 20 to 50
+const newsapiCategoryMap: Record<string, string> = {
+  general: 'general',
+  technology: 'technology',
+  business: 'business',
+  science: 'science',
+  health: 'health',
+  sports: 'sports',
+  entertainment: 'entertainment',
+};
 
+// Fetch from The Guardian
+async function fetchGuardian(category: string, pageSize: number): Promise<NewsArticle[]> {
   try {
-    const guardianSection = categoryMap[category] || 'world';
+    const guardianSection = guardianCategoryMap[category] || 'world';
+    const url = new URL('https://content.guardianapis.com/search');
+    url.searchParams.set('api-key', GUARDIAN_API_KEY);
+    url.searchParams.set('section', guardianSection);
+    url.searchParams.set('show-fields', 'headline,trailText,body,thumbnail,byline');
+    url.searchParams.set('page-size', Math.min(pageSize, 50).toString());
+    url.searchParams.set('order-by', 'newest');
     
-    // Using The Guardian Open Platform API (completely free)
-    // Fetch multiple pages in parallel for more articles
-    const pagesToFetch = Math.min(3, Math.ceil(pageSize / 20)); // Fetch up to 3 pages
-    const pagePromises = [];
+    const response = await fetch(url.toString());
+    const data = await response.json();
     
-    for (let i = 0; i < pagesToFetch; i++) {
-      const pageNum = parseInt(page) + i;
-      const url = new URL('https://content.guardianapis.com/search');
-      url.searchParams.set('api-key', GUARDIAN_API_KEY);
-      url.searchParams.set('section', guardianSection);
-      url.searchParams.set('show-fields', 'headline,trailText,body,thumbnail,byline');
-      url.searchParams.set('page-size', '50');
-      url.searchParams.set('page', pageNum.toString());
-      url.searchParams.set('order-by', 'newest');
-      
-      pagePromises.push(fetch(url.toString()).then(res => res.json()));
-    }
+    if (!data?.response?.results) return [];
     
-    // Fetch all pages in parallel
-    const responses = await Promise.all(pagePromises);
-    
-    // Combine all articles from all pages
-    let allArticles: any[] = [];
-    responses.forEach((response) => {
-      if (response?.response?.results) {
-        allArticles = allArticles.concat(response.response.results);
-      }
-    });
-    
-    // Remove duplicates based on article ID
-    const uniqueArticles = Array.from(
-      new Map(allArticles.map((article) => [article.id, article])).values()
-    );
-    
-    // Limit to requested page size
-    const limitedArticles = uniqueArticles.slice(0, pageSize);
-
-    const articles: NewsArticle[] = limitedArticles
+    return data.response.results
       .filter((article: any) => article.fields?.headline && article.fields?.trailText)
       .map((article: any, index: number) => {
-        // Extract text content from HTML body
         const bodyText = article.fields?.body 
-          ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000) // Increased from 1000 to 2000
+          ? article.fields.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 2000)
           : article.fields?.trailText || '';
 
         return {
-          id: `${article.id}-${index}`,
+          id: `guardian-${article.id}-${index}`,
           title: article.fields.headline || article.webTitle,
           description: article.fields.trailText || '',
           content: bodyText,
@@ -80,78 +62,164 @@ export async function GET(request: NextRequest) {
           imageUrl: article.fields.thumbnail,
           publishedAt: article.webPublicationDate,
           source: 'The Guardian',
-          author: article.fields.byline,
+          author: article.fields.byline || 'The Guardian',
         };
       });
+  } catch (error) {
+    console.error('Guardian API error:', error);
+    return [];
+  }
+}
 
-    // Get total from first response
-    const totalResults = responses[0]?.response?.total || articles.length;
+// Fetch from NewsAPI.org
+async function fetchNewsAPI(category: string, pageSize: number): Promise<NewsArticle[]> {
+  if (!NEWSAPI_KEY) return [];
+  
+  try {
+    const newsapiCategory = newsapiCategoryMap[category] || 'general';
+    const url = new URL('https://newsapi.org/v2/top-headlines');
+    url.searchParams.set('category', newsapiCategory);
+    url.searchParams.set('language', 'en');
+    url.searchParams.set('pageSize', Math.min(pageSize, 100).toString());
+    url.searchParams.set('apiKey', NEWSAPI_KEY);
+    
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    
+    if (!data?.articles) return [];
+    
+    return data.articles.map((article: any, index: number) => ({
+      id: `newsapi-${Date.now()}-${index}`,
+      title: article.title,
+      description: article.description || '',
+      content: article.content || article.description || '',
+      url: article.url,
+      imageUrl: article.urlToImage,
+      publishedAt: article.publishedAt,
+      source: article.source?.name || 'NewsAPI',
+      author: article.author || article.source?.name || 'NewsAPI',
+    }));
+  } catch (error) {
+    console.error('NewsAPI error:', error);
+    return [];
+  }
+}
+
+// Fetch from NewsData.io
+async function fetchNewsData(category: string, pageSize: number): Promise<NewsArticle[]> {
+  if (!NEWSDATA_KEY) return [];
+  
+  try {
+    const url = new URL('https://newsdata.io/api/1/news');
+    url.searchParams.set('apikey', NEWSDATA_KEY);
+    url.searchParams.set('category', category);
+    url.searchParams.set('language', 'en');
+    url.searchParams.set('size', Math.min(pageSize, 10).toString());
+    
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    
+    if (!data?.results) return [];
+    
+    return data.results.map((article: any, index: number) => ({
+      id: `newsdata-${article.article_id || Date.now()}-${index}`,
+      title: article.title,
+      description: article.description || '',
+      content: article.content || article.description || '',
+      url: article.link,
+      imageUrl: article.image_url,
+      publishedAt: article.pubDate,
+      source: article.source_id || 'NewsData',
+      author: article.creator?.[0] || article.source_id || 'NewsData',
+    }));
+  } catch (error) {
+    console.error('NewsData API error:', error);
+    return [];
+  }
+}
+
+// Fetch from GNews
+async function fetchGNews(category: string, pageSize: number): Promise<NewsArticle[]> {
+  if (!GNEWS_KEY) return [];
+  
+  try {
+    const url = new URL('https://gnews.io/api/v4/top-headlines');
+    url.searchParams.set('category', category === 'general' ? 'world' : category);
+    url.searchParams.set('lang', 'en');
+    url.searchParams.set('max', Math.min(pageSize, 10).toString());
+    url.searchParams.set('apikey', GNEWS_KEY);
+    
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    
+    if (!data?.articles) return [];
+    
+    return data.articles.map((article: any, index: number) => ({
+      id: `gnews-${Date.now()}-${index}`,
+      title: article.title,
+      description: article.description || '',
+      content: article.content || article.description || '',
+      url: article.url,
+      imageUrl: article.image,
+      publishedAt: article.publishedAt,
+      source: article.source?.name || 'GNews',
+      author: article.source?.name || 'GNews',
+    }));
+  } catch (error) {
+    console.error('GNews API error:', error);
+    return [];
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const category = searchParams.get('category') || 'general';
+  const page = searchParams.get('page') || '1';
+  const pageSize = parseInt(searchParams.get('pageSize') || '50');
+
+  try {
+    // Fetch from all sources in parallel for variety
+    const [guardianArticles, newsapiArticles, newsdataArticles, gnewsArticles] = await Promise.all([
+      fetchGuardian(category, Math.ceil(pageSize / 2)),
+      fetchNewsAPI(category, Math.ceil(pageSize / 4)),
+      fetchNewsData(category, Math.ceil(pageSize / 6)),
+      fetchGNews(category, Math.ceil(pageSize / 6)),
+    ]);
+
+    // Combine articles from all sources
+    let allArticles = [
+      ...guardianArticles,
+      ...newsapiArticles,
+      ...newsdataArticles,
+      ...gnewsArticles,
+    ];
+
+    // Remove duplicates by URL
+    const uniqueArticles = Array.from(
+      new Map(allArticles.map(article => [article.url, article])).values()
+    );
+
+    // Shuffle articles for variety (mix different sources)
+    const shuffled = uniqueArticles.sort(() => Math.random() - 0.5);
+
+    // Limit to requested page size
+    const articles = shuffled.slice(0, pageSize);
+
+    console.log(`📰 Fetched ${articles.length} articles from ${new Set(articles.map(a => a.source)).size} sources`);
 
     return NextResponse.json({
       articles,
-      totalResults,
-      hasMore: articles.length >= pageSize && totalResults > articles.length,
+      totalResults: articles.length,
+      hasMore: articles.length >= pageSize,
       currentPage: parseInt(page),
+      sources: Array.from(new Set(articles.map(a => a.source))),
     });
   } catch (error: any) {
     console.error('Error fetching news:', error);
-    
-    // Fallback to GNews API (also free tier available)
-    try {
-      // Fetch from multiple categories for more variety
-      const categoriesToFetch = category === 'general' 
-        ? ['world', 'general', 'breaking-news']
-        : [category];
-      
-      const gnewsPromises = categoriesToFetch.map(cat => {
-        const url = new URL('https://gnews.io/api/v4/top-headlines');
-        url.searchParams.set('category', cat === 'general' ? 'world' : cat);
-        url.searchParams.set('lang', 'en');
-        url.searchParams.set('max', '30');
-        url.searchParams.set('apikey', process.env.GNEWS_API_KEY || 'demo');
-        return fetch(url.toString()).then(res => res.json());
-      });
-      
-      const gnewsResponses = await Promise.all(gnewsPromises);
-      
-      // Combine articles from all categories
-      let allGnewsArticles: any[] = [];
-      gnewsResponses.forEach((response) => {
-        if (response?.articles) {
-          allGnewsArticles = allGnewsArticles.concat(response.articles);
-        }
-      });
-      
-      // Remove duplicates
-      const uniqueGnewsArticles = Array.from(
-        new Map(allGnewsArticles.map((article) => [article.url, article])).values()
-      ).slice(0, pageSize);
-
-      const articles: NewsArticle[] = uniqueGnewsArticles.map((article: any, index: number) => ({
-        id: `gnews-${Date.now()}-${index}`,
-        title: article.title,
-        description: article.description,
-        content: article.content || article.description,
-        url: article.url,
-        imageUrl: article.image,
-        publishedAt: article.publishedAt,
-        source: article.source.name,
-        author: article.source.name,
-      }));
-
-      return NextResponse.json({
-        articles,
-        totalResults: articles.length,
-        hasMore: false,
-        currentPage: parseInt(page),
-      });
-    } catch (fallbackError) {
-      console.error('Fallback news fetch also failed:', fallbackError);
-      return NextResponse.json(
-        { error: 'Failed to fetch news articles', details: 'Both news sources unavailable' },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(
+      { error: 'Failed to fetch news articles', details: error.message },
+      { status: 500 }
+    );
   }
 }
 
