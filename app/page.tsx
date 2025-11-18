@@ -34,6 +34,9 @@ export default function HomePage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('general');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('italian');
+  const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [availableSources, setAvailableSources] = useState<string[]>([]);
+  const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const { user } = useAuth();
@@ -63,7 +66,7 @@ export default function HomePage() {
     setCurrentPage(1);
     setArticles([]);
     fetchNews(1, true);
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedSource]);
 
   const fetchNews = useCallback(async (page: number = 1, reset: boolean = false) => {
     if (reset) {
@@ -74,7 +77,7 @@ export default function HomePage() {
     
     // Check cache first (only for first page)
     if (page === 1) {
-      const cacheKey = `news-${selectedCategory}`;
+      const cacheKey = `news-${selectedCategory}-${selectedSource}`;
       const cachedData = apiCache.get<NewsArticle[]>(cacheKey);
       
       if (cachedData) {
@@ -85,8 +88,9 @@ export default function HomePage() {
     }
     
     try {
+      const sourceParam = selectedSource !== 'all' ? `&source=${selectedSource}` : '';
       const response = await fetch(
-        `/api/news?category=${selectedCategory}&page=${page}&pageSize=50`
+        `/api/news?category=${selectedCategory}&page=${page}&pageSize=100${sourceParam}`
       );
       const data = await response.json();
 
@@ -94,8 +98,16 @@ export default function HomePage() {
         if (reset) {
           setArticles(data.articles);
           // Cache for 5 minutes
-          const cacheKey = `news-${selectedCategory}`;
+          const cacheKey = `news-${selectedCategory}-${selectedSource}`;
           apiCache.set(cacheKey, data.articles, 5);
+          
+          // Update available sources and counts
+          if (data.sources) {
+            setAvailableSources(data.sources);
+          }
+          if (data.sourceCounts) {
+            setSourceCounts(data.sourceCounts);
+          }
         } else {
           // Append new articles
           setArticles((prev) => {
@@ -123,7 +135,7 @@ export default function HomePage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [selectedCategory, articles]);
+  }, [selectedCategory, selectedSource, articles]);
   
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
@@ -178,6 +190,49 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      {/* Source Filter */}
+      {availableSources.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Filter by Source:
+            </h3>
+            <span className="text-xs text-muted-foreground">
+              ({articles.length} articles)
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <Button
+              variant={selectedSource === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedSource('all')}
+              className="whitespace-nowrap"
+            >
+              All Sources
+              <span className="ml-1.5 text-xs opacity-70">
+                ({Object.values(sourceCounts).reduce((a, b) => a + b, 0)})
+              </span>
+            </Button>
+            {availableSources.map((source) => (
+              <Button
+                key={source}
+                variant={selectedSource === source ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedSource(source)}
+                className="whitespace-nowrap"
+              >
+                {source}
+                {sourceCounts[source] && (
+                  <span className="ml-1.5 text-xs opacity-70">
+                    ({sourceCounts[source]})
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

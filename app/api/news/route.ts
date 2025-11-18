@@ -287,17 +287,18 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const category = searchParams.get('category') || 'general';
   const page = searchParams.get('page') || '1';
-  const pageSize = parseInt(searchParams.get('pageSize') || '50');
+  const pageSize = parseInt(searchParams.get('pageSize') || '100');
+  const sourceFilter = searchParams.get('source'); // New: filter by source
 
   try {
-    // Fetch from all sources in parallel for variety
+    // Fetch MORE articles from all sources in parallel
     const [guardianArticles, bbcArticles, alJazeeraArticles, reutersArticles, newsdataArticles, nytArticles] = await Promise.all([
-      fetchGuardian(category, 50), // Increased to maximum 50 articles from Guardian
-      fetchBBC(category, 20),
-      fetchAlJazeera(category, 15),
-      fetchReuters(category, 15),
+      fetchGuardian(category, 50), // Maximum from Guardian
+      fetchBBC(category, 30), // Increased from 20
+      fetchAlJazeera(category, 30), // Increased from 15
+      fetchReuters(category, 30), // Increased from 15
       fetchNewsData(category, 10),
-      fetchNYT(category, 15),
+      fetchNYT(category, 20), // Increased from 15
     ]);
 
     // Combine articles from all sources
@@ -315,20 +316,33 @@ export async function GET(request: NextRequest) {
       new Map(allArticles.map(article => [article.url, article])).values()
     );
 
+    // Filter by source if specified
+    const filteredArticles = sourceFilter
+      ? uniqueArticles.filter(article => article.source === sourceFilter)
+      : uniqueArticles;
+
     // Shuffle articles for variety (mix different sources)
-    const shuffled = uniqueArticles.sort(() => Math.random() - 0.5);
+    const shuffled = filteredArticles.sort(() => Math.random() - 0.5);
 
     // Limit to requested page size
     const articles = shuffled.slice(0, pageSize);
 
-    console.log(`📰 Fetched ${articles.length} articles from ${new Set(articles.map(a => a.source)).size} sources`);
+    // Get all available sources for filter UI
+    const availableSources = Array.from(new Set(uniqueArticles.map(a => a.source)));
+
+    console.log(`📰 Fetched ${articles.length} articles from ${sourceFilter || 'all sources'}`);
 
     return NextResponse.json({
       articles,
       totalResults: articles.length,
       hasMore: articles.length >= pageSize,
       currentPage: parseInt(page),
-      sources: Array.from(new Set(articles.map(a => a.source))),
+      sources: availableSources,
+      activeSource: sourceFilter || 'all',
+      sourceCounts: availableSources.reduce((acc, source) => {
+        acc[source] = uniqueArticles.filter(a => a.source === source).length;
+        return acc;
+      }, {} as Record<string, number>),
     });
   } catch (error: any) {
     console.error('Error fetching news:', error);
