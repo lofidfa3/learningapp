@@ -23,6 +23,9 @@ export const metadata: Metadata = {
   title: "LinguaNews - Learn Languages Through News & Lyrics",
   description: "Learn languages through live news articles and song lyrics with AI-powered translations and vocabulary extraction",
   keywords: "language learning, news, lyrics, translation, vocabulary, flashcards, spotify",
+  other: {
+    "google-adsense-account": "ca-pub-9327167657860145",
+  },
 };
 
 function LoadingFallback() {
