@@ -195,12 +195,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Check if email confirmation is required
         if (data.session) {
           // User is immediately signed in (email confirmation disabled)
-          // Create user profile in database
-          await createUserProfile({
-            id: data.user.id,
-            email: data.user.email || email,
-            display_name: displayName,
-          });
+          // Ensure user profile with COMPLETE setup (same as OAuth flow)
+          await ensureUserProfile(
+            data.user.id,
+            data.user.email || email,
+            displayName
+          );
           
           actionToasts.signupSuccess(displayName);
           
