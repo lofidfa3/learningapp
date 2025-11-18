@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NewsArticle } from '@/lib/types';
 
 // Multi-source news aggregator - fetches from multiple free news APIs
-// Sources: The Guardian, NewsAPI, NewsData.io, GNews
+// Sources: The Guardian, New York Times, BBC RSS, Reddit News
 
 const GUARDIAN_API_KEY = process.env.GUARDIAN_API_KEY || 'test';
-const NEWSAPI_KEY = process.env.NEWSAPI_KEY; // Get free key at newsapi.org
-const NEWSDATA_KEY = process.env.NEWSDATA_KEY; // Get free key at newsdata.io
-const GNEWS_KEY = process.env.GNEWS_API_KEY; // Get free key at gnews.io
+const NYT_API_KEY = process.env.NYT_API_KEY; // Optional: Get at developer.nytimes.com
 
-// Category mappings for different APIs
+// Category mappings
 const guardianCategoryMap: Record<string, string> = {
   general: 'world',
   technology: 'technology',
@@ -20,14 +18,14 @@ const guardianCategoryMap: Record<string, string> = {
   entertainment: 'culture',
 };
 
-const newsapiCategoryMap: Record<string, string> = {
-  general: 'general',
+const nytCategoryMap: Record<string, string> = {
+  general: 'home',
   technology: 'technology',
   business: 'business',
   science: 'science',
   health: 'health',
   sports: 'sports',
-  entertainment: 'entertainment',
+  entertainment: 'arts',
 };
 
 // Fetch from The Guardian
@@ -71,102 +69,130 @@ async function fetchGuardian(category: string, pageSize: number): Promise<NewsAr
   }
 }
 
-// Fetch from NewsAPI.org
-async function fetchNewsAPI(category: string, pageSize: number): Promise<NewsArticle[]> {
-  if (!NEWSAPI_KEY) return [];
+// Fetch from New York Times (optional - free tier available)
+async function fetchNYT(category: string, pageSize: number): Promise<NewsArticle[]> {
+  if (!NYT_API_KEY) return [];
   
   try {
-    const newsapiCategory = newsapiCategoryMap[category] || 'general';
-    const url = new URL('https://newsapi.org/v2/top-headlines');
-    url.searchParams.set('category', newsapiCategory);
-    url.searchParams.set('language', 'en');
-    url.searchParams.set('pageSize', Math.min(pageSize, 100).toString());
-    url.searchParams.set('apiKey', NEWSAPI_KEY);
-    
-    const response = await fetch(url.toString());
-    const data = await response.json();
-    
-    if (!data?.articles) return [];
-    
-    return data.articles.map((article: any, index: number) => ({
-      id: `newsapi-${Date.now()}-${index}`,
-      title: article.title,
-      description: article.description || '',
-      content: article.content || article.description || '',
-      url: article.url,
-      imageUrl: article.urlToImage,
-      publishedAt: article.publishedAt,
-      source: article.source?.name || 'NewsAPI',
-      author: article.author || article.source?.name || 'NewsAPI',
-    }));
-  } catch (error) {
-    console.error('NewsAPI error:', error);
-    return [];
-  }
-}
-
-// Fetch from NewsData.io
-async function fetchNewsData(category: string, pageSize: number): Promise<NewsArticle[]> {
-  if (!NEWSDATA_KEY) return [];
-  
-  try {
-    const url = new URL('https://newsdata.io/api/1/news');
-    url.searchParams.set('apikey', NEWSDATA_KEY);
-    url.searchParams.set('category', category);
-    url.searchParams.set('language', 'en');
-    url.searchParams.set('size', Math.min(pageSize, 10).toString());
+    const nytSection = nytCategoryMap[category] || 'home';
+    const url = new URL(`https://api.nytimes.com/svc/topstories/v2/${nytSection}.json`);
+    url.searchParams.set('api-key', NYT_API_KEY);
     
     const response = await fetch(url.toString());
     const data = await response.json();
     
     if (!data?.results) return [];
     
-    return data.results.map((article: any, index: number) => ({
-      id: `newsdata-${article.article_id || Date.now()}-${index}`,
+    return data.results.slice(0, pageSize).map((article: any, index: number) => ({
+      id: `nyt-${article.uri || Date.now()}-${index}`,
       title: article.title,
-      description: article.description || '',
-      content: article.content || article.description || '',
-      url: article.link,
-      imageUrl: article.image_url,
-      publishedAt: article.pubDate,
-      source: article.source_id || 'NewsData',
-      author: article.creator?.[0] || article.source_id || 'NewsData',
+      description: article.abstract || '',
+      content: article.abstract || '',
+      url: article.url,
+      imageUrl: article.multimedia?.[0]?.url || article.multimedia?.[1]?.url,
+      publishedAt: article.published_date,
+      source: 'The New York Times',
+      author: article.byline || 'The New York Times',
     }));
   } catch (error) {
-    console.error('NewsData API error:', error);
+    console.error('NYT API error:', error);
     return [];
   }
 }
 
-// Fetch from GNews
-async function fetchGNews(category: string, pageSize: number): Promise<NewsArticle[]> {
-  if (!GNEWS_KEY) return [];
-  
+// Fetch from BBC News RSS (free, no API key!)
+async function fetchBBC(category: string, pageSize: number): Promise<NewsArticle[]> {
   try {
-    const url = new URL('https://gnews.io/api/v4/top-headlines');
-    url.searchParams.set('category', category === 'general' ? 'world' : category);
-    url.searchParams.set('lang', 'en');
-    url.searchParams.set('max', Math.min(pageSize, 10).toString());
-    url.searchParams.set('apikey', GNEWS_KEY);
+    const bbcCategoryMap: Record<string, string> = {
+      general: 'news',
+      technology: 'technology',
+      business: 'business',
+      science: 'science',
+      health: 'health',
+      sports: 'sport',
+      entertainment: 'entertainment',
+    };
     
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const bbcSection = bbcCategoryMap[category] || 'news';
+    const rssUrl = `https://feeds.bbci.co.uk/news/${bbcSection}/rss.xml`;
     
-    if (!data?.articles) return [];
+    const response = await fetch(rssUrl);
+    const xmlText = await response.text();
     
-    return data.articles.map((article: any, index: number) => ({
-      id: `gnews-${Date.now()}-${index}`,
-      title: article.title,
-      description: article.description || '',
-      content: article.content || article.description || '',
-      url: article.url,
-      imageUrl: article.image,
-      publishedAt: article.publishedAt,
-      source: article.source?.name || 'GNews',
-      author: article.source?.name || 'GNews',
-    }));
+    // Simple XML parsing (extract items)
+    const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
+    
+    return items.slice(0, pageSize).map((item, index) => {
+      const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] || 
+                    item.match(/<title>(.*?)<\/title>/)?.[1] || '';
+      const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
+                         item.match(/<description>(.*?)<\/description>/)?.[1] || '';
+      const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
+      const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
+      const thumbnail = item.match(/<media:thumbnail[^>]*url="([^"]*)"/)? [1] || '';
+      
+      return {
+        id: `bbc-${Date.now()}-${index}`,
+        title: title.trim(),
+        description: description.replace(/<[^>]*>/g, '').trim(),
+        content: description.replace(/<[^>]*>/g, '').trim(),
+        url: link.trim(),
+        imageUrl: thumbnail,
+        publishedAt: pubDate,
+        source: 'BBC News',
+        author: 'BBC News',
+      };
+    }).filter(article => article.title && article.url);
   } catch (error) {
-    console.error('GNews API error:', error);
+    console.error('BBC RSS error:', error);
+    return [];
+  }
+}
+
+// Fetch from CNN RSS (free, no API key!)
+async function fetchCNN(category: string, pageSize: number): Promise<NewsArticle[]> {
+  try {
+    const cnnCategoryMap: Record<string, string> = {
+      general: 'world',
+      technology: 'tech',
+      business: 'business',
+      science: 'tech',
+      health: 'health',
+      sports: 'sport',
+      entertainment: 'entertainment',
+    };
+    
+    const cnnSection = cnnCategoryMap[category] || 'world';
+    const rssUrl = `http://rss.cnn.com/rss/cnn_${cnnSection}.rss`;
+    
+    const response = await fetch(rssUrl);
+    const xmlText = await response.text();
+    
+    // Simple XML parsing
+    const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
+    
+    return items.slice(0, pageSize).map((item, index) => {
+      const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ||
+                    item.match(/<title>(.*?)<\/title>/)?.[1] || '';
+      const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
+                         item.match(/<description>(.*?)<\/description>/)?.[1] || '';
+      const link = item.match(/<link>(.*?)<\/link>/)?.[1] || '';
+      const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] || '';
+      
+      return {
+        id: `cnn-${Date.now()}-${index}`,
+        title: title.trim(),
+        description: description.replace(/<[^>]*>/g, '').trim(),
+        content: description.replace(/<[^>]*>/g, '').trim(),
+        url: link.trim(),
+        imageUrl: '',
+        publishedAt: pubDate,
+        source: 'CNN',
+        author: 'CNN',
+      };
+    }).filter(article => article.title && article.url);
+  } catch (error) {
+    console.error('CNN RSS error:', error);
     return [];
   }
 }
@@ -179,19 +205,19 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch from all sources in parallel for variety
-    const [guardianArticles, newsapiArticles, newsdataArticles, gnewsArticles] = await Promise.all([
+    const [guardianArticles, nytArticles, bbcArticles, cnnArticles] = await Promise.all([
       fetchGuardian(category, Math.ceil(pageSize / 2)),
-      fetchNewsAPI(category, Math.ceil(pageSize / 4)),
-      fetchNewsData(category, Math.ceil(pageSize / 6)),
-      fetchGNews(category, Math.ceil(pageSize / 6)),
+      fetchNYT(category, Math.ceil(pageSize / 6)),
+      fetchBBC(category, Math.ceil(pageSize / 4)),
+      fetchCNN(category, Math.ceil(pageSize / 6)),
     ]);
 
     // Combine articles from all sources
     let allArticles = [
       ...guardianArticles,
-      ...newsapiArticles,
-      ...newsdataArticles,
-      ...gnewsArticles,
+      ...nytArticles,
+      ...bbcArticles,
+      ...cnnArticles,
     ];
 
     // Remove duplicates by URL
