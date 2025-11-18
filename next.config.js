@@ -2,9 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Performance: Enable SWC minification (faster than Terser)
-  swcMinify: true,
-  
   // Performance: Enable compression
   compress: true,
   

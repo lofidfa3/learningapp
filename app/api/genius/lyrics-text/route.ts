@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -11,13 +10,13 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch the Genius page
-    const response = await axios.get(lyricsUrl, {
+    const response = await fetch(lyricsUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
 
-    const html = response.data;
+    const html = await response.text();
     
     // Extract lyrics from the page - Genius uses multiple possible structures
     // Try multiple patterns to find lyrics

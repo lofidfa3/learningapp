@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 
 const GENIUS_ACCESS_TOKEN = process.env.GENIUS_ACCESS_TOKEN || '63GzNt7g9M9-YtP8daOkMDG2i6qlqfLyzCsg2QIyoRqNPVpE0k_rruXi5RONSHzf';
 
@@ -21,16 +20,17 @@ export async function GET(request: NextRequest) {
     console.log('🔍 Searching Genius for:', { songTitle: cleanTitle, artist: cleanArtist, query: searchQuery });
     
     // Step 1: Search for the song
-    const searchResponse = await axios.get('https://api.genius.com/search', {
+    const searchUrl = new URL('https://api.genius.com/search');
+    searchUrl.searchParams.set('q', searchQuery);
+    
+    const searchResponse = await fetch(searchUrl.toString(), {
       headers: {
         'Authorization': `Bearer ${GENIUS_ACCESS_TOKEN}`,
       },
-      params: {
-        q: searchQuery,
-      },
     });
-
-    const hits = searchResponse.data?.response?.hits || [];
+    
+    const searchData = await searchResponse.json();
+    const hits = searchData?.response?.hits || [];
     
     if (hits.length === 0) {
       console.log('❌ No results found for:', searchQuery);
