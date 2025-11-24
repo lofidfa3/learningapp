@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, Newspaper, TrendingUp, Settings, Music, Crown, User, Library } from 'lucide-react';
+import { BookOpen, Newspaper, TrendingUp, Settings, Music, Crown, User, Library, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ const navigationItems = [
   { href: '/', label: 'News', icon: Newspaper },
   { href: '/lyrics', label: 'Lyrics', icon: Music },
   { href: '/library', label: 'Library', icon: Library },
+  { href: '/desktop-assistant', label: 'Companion', icon: Monitor },
   { href: '/flashcards', label: 'Flashcards', icon: BookOpen },
   { href: '/progress', label: 'Progress', icon: TrendingUp },
   { href: '/settings', label: 'Settings', icon: Settings },
