@@ -1,8 +1,14 @@
+'use client';
+
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
+  const pathname = usePathname();
+
+  if (pathname?.startsWith('/mindhouse')) return null;
 
   return (
     <footer className="border-t-4 border-primary bg-card mt-auto">
@@ -73,4 +79,3 @@ export function Footer() {
     </footer>
   );
 }
-
